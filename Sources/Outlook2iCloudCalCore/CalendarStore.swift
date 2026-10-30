@@ -3,14 +3,16 @@ import Foundation
 /// The fields copied from an Outlook event to the iCloud calendar.
 public struct EventFields: Equatable, Sendable {
     public let title: String
-    /// Nil when the location is empty, so Outlook's "" and EventKit's nil compare equal.
+    /// Nil when the location is empty or whitespace-only, so Outlook's "", EventKit's nil, and a
+    /// location that iCloud drops all compare equal.
     public let location: String?
     public let start: Date
     public let end: Date
 
     public init(title: String, location: String?, start: Date, end: Date) {
         self.title = title
-        self.location = location?.isEmpty == true ? nil : location
+        let isBlank = location?.allSatisfy(\.isWhitespace) == true
+        self.location = isBlank ? nil : location
         self.start = start
         self.end = end
     }
