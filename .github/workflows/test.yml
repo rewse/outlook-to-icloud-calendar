@@ -26,3 +26,48 @@ jobs:
         env:
           DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
         run: make test
+
+  dmg-smoke:
+    name: DMG smoke test
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Test the release checks
+        run: bash scripts/tests/test_release_checks.sh
+
+      - name: Import a throwaway signing identity
+        run: |
+          P12_PASSWORD="$(openssl rand -hex 16)"
+          export P12_PASSWORD
+          sha1="$(scripts/tests/make-throwaway-p12.sh "$RUNNER_TEMP/throwaway.p12")"
+          echo "EXPECTED_SIGNING_SHA1=$sha1" >> "$GITHUB_ENV"
+          scripts/ci-import-signing-identity.sh "$RUNNER_TEMP/throwaway.p12"
+          rm -f "$RUNNER_TEMP/throwaway.p12"
+
+      - name: Build the DMG
+        env:
+          DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+        run: make dmg
+
+      - name: Check the app inside the DMG
+        run: |
+          dmg="$(ls build/Outlook2iCloudCal-*.dmg)"
+          (cd build && shasum -a 256 -c "$(basename "$dmg").sha256")
+          mount="$(mktemp -d "$RUNNER_TEMP/dmg.XXXXXX")"
+          hdiutil attach -nobrowse -readonly -mountpoint "$mount" "$dmg"
+          scripts/check-signature.sh "$mount/Outlook2iCloudCal.app"
+          test -L "$mount/Applications"
+          test -f "$mount/README.txt"
+          hdiutil detach "$mount"
+
+      - name: Remove the signing identity
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/throwaway.p12"
+          if [ -n "${SIGNING_KEYCHAIN:-}" ]; then
+            security delete-keychain "$SIGNING_KEYCHAIN"
+          fi
