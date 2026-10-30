@@ -1,0 +1,22 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "NSCalendarsFullAccessUsageDescription": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Used to write Outlook events to the Business calendar in iCloud."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Outlook の予定を iCloud の Business カレンダーへ書き込むために使います。"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

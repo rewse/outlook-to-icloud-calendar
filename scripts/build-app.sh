@@ -21,6 +21,10 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/Outlook2iCloudCal" "$APP/Contents/MacOS/Outlook2iCloudCal"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+# Compiles each string catalog into en.lproj and ja.lproj.
+for catalog in Resources/Localizable.xcstrings Resources/InfoPlist.xcstrings; do
+    xcrun xcstringstool compile "$catalog" --output-directory "$APP/Contents/Resources"
+done
 
 ICON_TMP="$(mktemp -d build/icon.XXXXXX)"
 trap 'rm -rf "$ICON_TMP"' EXIT

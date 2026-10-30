@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
     <key>CFBundleExecutable</key>
     <string>Outlook2iCloudCal</string>
     <key>CFBundleIdentifier</key>
@@ -21,7 +23,7 @@
     <key>LSUIElement</key>
     <true/>
     <key>NSCalendarsFullAccessUsageDescription</key>
-    <string>Outlook の予定を iCloud の Business カレンダーへ書き込むために使います。</string>
+    <string>Used to write Outlook events to the Business calendar in iCloud.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSPrincipalClass</key>

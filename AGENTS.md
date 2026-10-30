@@ -25,6 +25,13 @@ Never fall back to ad-hoc signing. The calendar permission is tied to the signat
 - Fixtures contain invented data only. Never put real subjects, names, companies, locations, or meeting URLs in tests or fixtures.
 - Test output must stay free of warnings.
 
+## Localization
+
+- Write user-facing text with `String(localized:)`, using the English text as the key. SwiftUI and AppKit receive the resulting `String`.
+- Add every new key to `Resources/Localizable.xcstrings` with a Japanese translation, and to `allKeys` in `Tests/Outlook2iCloudCalCoreTests/LocalizationTests.swift`. Give English a plural variation where the count changes the noun.
+- Keep log lines and `SyncOutcome.failed` reasons in English, outside the catalog.
+- `scripts/build-app.sh` compiles the catalogs into the app's `en.lproj` and `ja.lproj`. Tests run without them, so `String(localized:)` returns the English key there.
+
 ## Internal tool names
 
 The code may name the internal Outlook MCP server, the certificate command, and their error messages. `README.md` must not: describe them generically (an MCP server that returns Outlook calendar data, the command that renews the authentication certificate).
