@@ -58,7 +58,7 @@ struct MCPorterSourceTests {
     private func source(_ runner: FakeRunner, cookie: URL, now: @escaping @Sendable () -> Date) -> MCPorterSource {
         MCPorterSource(
             runner: runner, mcporter: URL(fileURLWithPath: "/fake/mcporter"), cookieFile: cookie,
-            now: now, calendar: cal)
+            home: URL(fileURLWithPath: "/fake/home"), now: now, calendar: cal)
     }
 
     @Test func buildsCalendarViewArguments() async throws {
@@ -74,7 +74,7 @@ struct MCPorterSourceTests {
                 "call", "aws-outlook-mcp.calendar_view", "view=day", "start_date=10-30-2026",
                 "end_date=11-30-2026",
             ])
-        #expect(call.environment["PATH"] == "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin")
+        #expect(call.environment["PATH"] == "/fake/home/.toolbox/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin")
         #expect(call.environment["HOME"] != nil)
         #expect(call.timeout == .seconds(180))
     }

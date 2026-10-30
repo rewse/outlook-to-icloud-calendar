@@ -2,12 +2,18 @@ import Foundation
 
 /// Reads Outlook events by calling the `calendar_view` tool through mcporter.
 public struct MCPorterSource: OutlookSource {
-    static let path = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+    /// The directories mcporter and the MCP server it spawns are found in. `~/.toolbox/bin` is where the
+    /// Outlook MCP server is installed.
+    static func path(home: URL) -> String {
+        "\(home.appending(path: ".toolbox/bin").path):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+    }
+
     static let timeout = Duration.seconds(180)
 
     private let runner: CommandRunner
     private let mcporter: URL
     private let cookieFile: URL
+    private let home: URL
     private let now: @Sendable () -> Date
     private let calendar: Calendar
 
@@ -15,12 +21,14 @@ public struct MCPorterSource: OutlookSource {
         runner: CommandRunner,
         mcporter: URL = URL(fileURLWithPath: "/opt/homebrew/bin/mcporter"),
         cookieFile: URL = FileManager.default.homeDirectoryForCurrentUser.appending(path: ".midway/cookie"),
+        home: URL = FileManager.default.homeDirectoryForCurrentUser,
         now: @escaping @Sendable () -> Date = { Date() },
         calendar: Calendar = .current
     ) {
         self.runner = runner
         self.mcporter = mcporter
         self.cookieFile = cookieFile
+        self.home = home
         self.now = now
         self.calendar = calendar
     }
@@ -30,7 +38,7 @@ public struct MCPorterSource: OutlookSource {
             throw FetchError.certificateExpired
         }
         var environment = ProcessInfo.processInfo.environment
-        environment["PATH"] = Self.path
+        environment["PATH"] = Self.path(home: home)
         let result = try await runner.run(
             executable: mcporter,
             arguments: [
