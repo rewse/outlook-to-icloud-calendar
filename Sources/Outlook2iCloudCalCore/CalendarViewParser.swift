@@ -25,13 +25,14 @@ public enum CalendarViewParser {
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             meetingId = try c.decode(String.self, forKey: .meetingId)
-            subject = try c.decode(String.self, forKey: .subject)
+            subject = try c.decodeIfPresent(String.self, forKey: .subject) ?? ""
             start = try c.decode(String.self, forKey: .start)
             end = try c.decode(String.self, forKey: .end)
             location = try c.decodeIfPresent(String.self, forKey: .location) ?? ""
             isAllDay = try c.decode(Bool.self, forKey: .isAllDay)
             isCanceled = try c.decode(Bool.self, forKey: .isCanceled)
-            response = try c.decode(String.self, forKey: .response)
+            // An empty response is an unrecognized one, which Eligibility excludes.
+            response = try c.decodeIfPresent(String.self, forKey: .response) ?? ""
         }
     }
 

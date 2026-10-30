@@ -67,6 +67,29 @@ private func fixture(_ name: String) throws -> String {
         #expect(missingLocation.map { $0.location } == [""])
     }
 
+    @Test func defaultsNullOrMissingSubjectToEmpty() throws {
+        let base = """
+            "meetingId":"a","start":"2026-10-30T09:00:00+09:00","end":"2026-10-30T10:00:00+09:00",\
+            "location":"","isCanceled":false,"isAllDay":false,"response":"Accept"
+            """
+        let nullSubject = try CalendarViewParser.parse("[{\(base),\"subject\":null}]")
+        let missingSubject = try CalendarViewParser.parse("[{\(base)}]")
+        #expect(nullSubject.map { $0.subject } == [""])
+        #expect(missingSubject.map { $0.subject } == [""])
+    }
+
+    @Test func defaultsNullOrMissingResponseToEmptyAndExcludesIt() throws {
+        let base = """
+            "meetingId":"a","subject":"s","start":"2026-10-30T09:00:00+09:00",\
+            "end":"2026-10-30T10:00:00+09:00","location":"","isCanceled":false,"isAllDay":false
+            """
+        let nullResponse = try CalendarViewParser.parse("[{\(base),\"response\":null}]")
+        let missingResponse = try CalendarViewParser.parse("[{\(base)}]")
+        #expect(nullResponse.map { $0.response } == [""])
+        #expect(missingResponse.map { $0.response } == [""])
+        #expect(nullResponse.allSatisfy { Eligibility.evaluate($0) != nil })
+    }
+
     @Test func rejectsInvalidDate() {
         let json = """
             [{"meetingId":"a","subject":"s","start":"not-a-date","end":"2026-10-30T10:00:00+09:00",\
