@@ -48,12 +48,23 @@ Reset and Refetch asks for confirmation, then deletes everything in `Business` w
 ## Requirements
 
 - macOS 15 or later
-- Xcode, installed at `/Applications/Xcode.app`. The build sets `DEVELOPER_DIR` itself, so `xcode-select` can keep pointing at the Command Line Tools.
+- To build from source only: Xcode, installed at `/Applications/Xcode.app`. The build sets `DEVELOPER_DIR` itself, so `xcode-select` can keep pointing at the Command Line Tools.
 - `mcporter` with an MCP server registered that returns your Outlook calendar
 - The command that renews the certificate the MCP server needs for authentication
 - An iCloud account signed in to the macOS Calendar app
 
 ## Install
+
+### Install the DMG
+
+1. Download `Outlook2iCloudCal-X.Y.Z.dmg` from the [latest release](https://github.com/rewse/outlook-to-icloud-calendar/releases/latest). The `.sha256` file next to it holds its checksum: `shasum -a 256 -c Outlook2iCloudCal-X.Y.Z.dmg.sha256`.
+2. Open the DMG and drag `Outlook2iCloudCal.app` onto `Applications`. If you installed it with `make install` before, replace `~/Applications/Outlook2iCloudCal.app` instead and keep only one copy, because with two copies the login item may open the wrong one.
+3. The app is signed with a self-signed certificate and is not notarized, so macOS blocks it after every download, on the first install and on each update. Open it once, then click Open Anyway in System Settings under Privacy & Security, or run `xattr -dr com.apple.quarantine /Applications/Outlook2iCloudCal.app`.
+4. Allow calendar access and notifications when macOS asks. On first launch the app registers itself as a login item, so it starts again when you log in; you can turn this off in System Settings under General > Login Items.
+
+Every release is signed with the same certificate, so updating keeps the permissions. A build from source is signed with your own certificate instead, so macOS asks for calendar access once more when you switch between the two.
+
+### Build from source
 
 ```sh
 git clone https://github.com/rewse/outlook-to-icloud-calendar.git
@@ -62,9 +73,7 @@ git checkout vX.Y.Z   # a release tag
 make cert && make install
 ```
 
-`make cert` creates a self-signed code-signing certificate in your login keychain. The app is signed with it because the calendar permission is tied to the signature, and an unstable signature would ask again after every build. `make install` builds the app, copies it to `~/Applications`, and opens it. Allow calendar access and notifications when macOS asks. On first launch the app registers itself as a login item, so it starts again when you log in; you can turn this off in System Settings under General > Login Items.
-
-Releases carry no prebuilt app, for the same reason: a build signed elsewhere has a different signature.
+`make cert` creates a self-signed code-signing certificate in your login keychain. The app is signed with it because the calendar permission is tied to the signature, and an unstable signature would ask again after every build. `make install` builds the app, copies it to `~/Applications`, and opens it. Allow calendar access and notifications when macOS asks.
 
 ## Development
 
