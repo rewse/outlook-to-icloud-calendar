@@ -186,3 +186,11 @@ GUI アプリはログインシェルの PATH を引き継がないので、`mcp
 - 起動直後やスリープ復帰後に同期が遅れていたとき、すぐ同期するかどうか
 - 同期中の表示（アイコンのアニメーションなど）と、二重実行の防止
 - Swift の lint とテストの構成
+
+## リリースとライセンス
+
+バージョンは `vX.Y.Z` のタグで管理し、タグの push で `release.yml` が GitHub Release を作る。リリースノートは git-cliff で Conventional Commits から生成する。`cliff.toml` と `release.yml` は `~/git/actions` のものを踏襲し、Full Changelog の URL だけこのリポジトリに合わせる。`~/git/AGENTS.md` に従い、タグのルールセット `Protect release tags` も設定する。アプリの `CFBundleShortVersionString` はタグのバージョンとそろえる。
+
+Release にはビルド済みの `.app` を添付しない。署名はこの Mac にある自己署名証明書で行うので、CI でビルドすると署名が変わってカレンダーの許可が外れるからである。インストールはタグを checkout してローカルでビルドする（設計上の判断）。
+
+ライセンスは MIT とし、リポジトリのルートに `LICENSE` を置く。
