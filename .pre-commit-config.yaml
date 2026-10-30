@@ -16,3 +16,8 @@ repos:
     hooks:
       - id: shellcheck
         exclude_types: [zsh]
+  - repo: https://github.com/realm/SwiftLint
+    rev: 6aba03e3d8302b33f106e0f922210f35ca4b52cf  # frozen: 0.65.1
+    hooks:
+      - id: swiftlint
+        args: [--strict]

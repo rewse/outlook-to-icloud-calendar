@@ -1,0 +1,15 @@
+included:
+  - Package.swift
+  - Sources
+  - Tests
+  - scripts
+excluded:
+  - .build
+  - build
+# Google Swift style requires trailing commas in multi-line collections.
+trailing_comma:
+  mandatory_comma: true
+# swift-format puts the brace of a multi-line condition on its own line.
+opening_brace:
+  ignore_multiline_statement_conditions: true
+  ignore_multiline_function_signatures: true

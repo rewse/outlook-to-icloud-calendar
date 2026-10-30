@@ -31,7 +31,7 @@ The code may name the internal Outlook MCP server, the certificate command, and 
 
 ## Validation
 
-Before committing, stage new files and run `uvx --with pre-commit-uv==4.3.0 pre-commit@4.6.2 run --all-files`, because `--all-files` skips untracked files. CI runs the same hooks in `lint.yml`. `core.hooksPath` points at git-defender, so `pre-commit install` cannot run them at commit time.
+Before committing, stage new files and run `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer uvx --with pre-commit-uv==4.3.0 pre-commit@4.6.2 run --all-files`, because `--all-files` skips untracked files. SwiftLint loads sourcekitd from the Xcode toolchain and crashes without `DEVELOPER_DIR`. The SwiftLint hook runs with `--strict`, so warnings fail it too; `.swiftlint.yml` holds the rule settings. CI runs the same hooks in `lint.yml`. `core.hooksPath` points at git-defender, so `pre-commit install` cannot run them at commit time.
 
 ## Releases
 
