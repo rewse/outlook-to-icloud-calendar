@@ -3,24 +3,36 @@ import Testing
 
 @testable import Outlook2iCloudCalCore
 
+private struct BannerCase {
+    let outcome: SyncOutcome
+    let badge: IconBadge
+    let banner: String?
+
+    init(_ outcome: SyncOutcome, _ badge: IconBadge, _ banner: String?) {
+        self.outcome = outcome
+        self.badge = badge
+        self.banner = banner
+    }
+}
+
 @Test func badgeAndBanner() {
-    let cases: [(SyncOutcome, IconBadge, String?)] = [
-        (.certificateExpired, .alert, "証明書が切れています。mwinit してください"),
-        (
+    let cases: [BannerCase] = [
+        BannerCase(.certificateExpired, .alert, "証明書が切れています。mwinit してください"),
+        BannerCase(
             .incompleteFetch(bucketCounts: [1, 0, 1, 1, 1, 1, 1]), .alert,
             "取得が途中で切れたため同期を見送りました"
         ),
-        (.failed("x"), .alert, "同期に失敗しました。ログを確認してください"),
-        (
+        BannerCase(.failed("x"), .alert, "同期に失敗しました。ログを確認してください"),
+        BannerCase(
             .heldDeletions(SyncCounts(held: 42), managed: 180, storeIDs: []), .paused,
             "削除 42 件を保留中（管理中 180 件の 23%）"
         ),
-        (.success(SyncCounts(added: 1)), .none, nil),
+        BannerCase(.success(SyncCounts(added: 1)), .none, nil),
     ]
-    for (outcome, badge, banner) in cases {
-        let status = AppStatus().applying(outcome, at: tokyo("2026-10-30T09:00:00"))
-        #expect(status.badge == badge)
-        #expect(status.banner == banner)
+    for testCase in cases {
+        let status = AppStatus().applying(testCase.outcome, at: tokyo("2026-10-30T09:00:00"))
+        #expect(status.badge == testCase.badge)
+        #expect(status.banner == testCase.banner)
     }
     #expect(AppStatus().badge == .none)
     #expect(AppStatus().banner == nil)

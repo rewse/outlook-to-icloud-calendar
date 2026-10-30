@@ -103,8 +103,33 @@ public struct ProcessCommandRunner: CommandRunner {
         let (complete, completeSignal) = AsyncStream<Void>.makeStream()
         let state = RunState(complete: completeSignal)
         process.terminationHandler = { _ in state.markExited() }
-        // Drain both pipes while the process runs so a full pipe never blocks it.
-        for (pipe, isStdout) in [(outPipe, true), (errPipe, false)] {
+        Self.drain(stdout: outPipe, stderr: errPipe, into: state)
+        do {
+            try process.run()
+        } catch {
+            for pipe in [outPipe, errPipe] { pipe.fileHandleForReading.readabilityHandler = nil }
+            throw FetchError.commandFailed("cannot start \(executable.lastPathComponent): \(error)")
+        }
+
+        let outcome = await Self.wait(for: complete, timeout: timeout)
+        switch outcome {
+        case .completed:
+            let (out, err) = state.output
+            // Lossy decoding keeps the readable part of output that is not valid UTF-8.
+            return CommandResult(
+                exitCode: process.terminationStatus,
+                stdout: String(decoding: out, as: UTF8.self),  // swiftlint:disable:this optional_data_string_conversion
+                stderr: String(decoding: err, as: UTF8.self))  // swiftlint:disable:this optional_data_string_conversion
+        case .timedOut, .cancelled:
+            await Self.stop(process, pipes: [outPipe, errPipe], state: state)
+            if outcome == .cancelled { throw CancellationError() }
+            throw FetchError.timedOut
+        }
+    }
+
+    /// Drains both pipes while the process runs so a full pipe never blocks it.
+    private static func drain(stdout: Pipe, stderr: Pipe, into state: RunState) {
+        for (pipe, isStdout) in [(stdout, true), (stderr, false)] {
             pipe.fileHandleForReading.readabilityHandler = { handle in
                 let data = handle.availableData
                 if data.isEmpty {
@@ -115,15 +140,12 @@ public struct ProcessCommandRunner: CommandRunner {
                 }
             }
         }
-        do {
-            try process.run()
-        } catch {
-            for pipe in [outPipe, errPipe] { pipe.fileHandleForReading.readabilityHandler = nil }
-            throw FetchError.commandFailed("cannot start \(executable.lastPathComponent): \(error)")
-        }
+    }
 
-        // One deadline covers the exit of the child and the end of its output.
-        let outcome = await withTaskGroup(of: Outcome.self) { group in
+    /// Waits until `complete` finishes or `timeout` passes. One deadline covers the exit
+    /// of the child and the end of its output.
+    private static func wait(for complete: AsyncStream<Void>, timeout: Duration) async -> Outcome {
+        await withTaskGroup(of: Outcome.self) { group in
             group.addTask {
                 for await _ in complete {}
                 return .completed
@@ -140,29 +162,20 @@ public struct ProcessCommandRunner: CommandRunner {
             group.cancelAll()
             return Task.isCancelled ? .cancelled : first
         }
+    }
 
-        switch outcome {
-        case .completed:
-            let (out, err) = state.output
-            return CommandResult(
-                exitCode: process.terminationStatus,
-                stdout: String(decoding: out, as: UTF8.self),
-                stderr: String(decoding: err, as: UTF8.self))
-        case .timedOut, .cancelled:
-            for pipe in [outPipe, errPipe] {
-                pipe.fileHandleForReading.readabilityHandler = nil
-                try? pipe.fileHandleForReading.close()
-            }
-            if !state.hasExited {
-                process.terminate()
-                let pid = process.processIdentifier
-                DispatchQueue.global().asyncAfter(deadline: .now() + Self.killGrace) {
-                    if !state.hasExited { kill(pid, SIGKILL) }
-                }
-                await state.waitForExit()
-            }
-            if outcome == .cancelled { throw CancellationError() }
-            throw FetchError.timedOut
+    /// Closes the pipes and terminates the child, killing it if it outlives the grace period.
+    private static func stop(_ process: Process, pipes: [Pipe], state: RunState) async {
+        for pipe in pipes {
+            pipe.fileHandleForReading.readabilityHandler = nil
+            try? pipe.fileHandleForReading.close()
         }
+        guard !state.hasExited else { return }
+        process.terminate()
+        let pid = process.processIdentifier
+        DispatchQueue.global().asyncAfter(deadline: .now() + killGrace) {
+            if !state.hasExited { kill(pid, SIGKILL) }
+        }
+        await state.waitForExit()
     }
 }

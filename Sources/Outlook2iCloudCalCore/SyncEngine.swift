@@ -66,23 +66,14 @@ public struct SyncEngine: Sendable {
         let window = SyncWindow(now: now, calendar: calendar)
         log.write("sync start mode=\(mode) window=\(format.span(window.range))")
 
-        var fetched: [OutlookEvent] = []
-        var callCounts: [Int] = []
-        for (index, bucket) in window.buckets.enumerated() {
-            let prefix = "bucket \(index) \(format.span(bucket))"
-            do {
-                let events = try await source.fetch(bucket)
-                log.write("\(prefix) fetched=\(events.count)")
-                callCounts.append(events.count)
-                fetched += events
-            } catch let error as FetchError {
-                log.write("\(prefix) error: \(error)")
-                return finish(
-                    error == .certificateExpired ? .certificateExpired : .failed("\(error)"))
-            } catch {
-                log.write("\(prefix) error: \(error)")
-                return finish(.failed(String(describing: error)))
-            }
+        let fetched: [OutlookEvent]
+        let callCounts: [Int]
+        switch await fetchBuckets(window, format: format) {
+        case .fetched(let events, let counts):
+            fetched = events
+            callCounts = counts
+        case .failed(let outcome):
+            return finish(outcome)
         }
 
         let inWindow = dedupeByMeetingId(fetched).filter {
@@ -124,6 +115,34 @@ public struct SyncEngine: Sendable {
             log.write("store error: \(error); staged changes rolled back")
             return finish(.failed(String(describing: error)))
         }
+    }
+
+    private enum BucketFetch {
+        case fetched([OutlookEvent], callCounts: [Int])
+        case failed(SyncOutcome)
+    }
+
+    /// Fetches every bucket in order and stops at the first error.
+    private func fetchBuckets(_ window: SyncWindow, format: SyncLogFormat) async -> BucketFetch {
+        var fetched: [OutlookEvent] = []
+        var callCounts: [Int] = []
+        for (index, bucket) in window.buckets.enumerated() {
+            let prefix = "bucket \(index) \(format.span(bucket))"
+            do {
+                let events = try await source.fetch(bucket)
+                log.write("\(prefix) fetched=\(events.count)")
+                callCounts.append(events.count)
+                fetched += events
+            } catch let error as FetchError {
+                log.write("\(prefix) error: \(error)")
+                return .failed(
+                    error == .certificateExpired ? .certificateExpired : .failed("\(error)"))
+            } catch {
+                log.write("\(prefix) error: \(error)")
+                return .failed(.failed(String(describing: error)))
+            }
+        }
+        return .fetched(fetched, callCounts: callCounts)
     }
 
     private func reset(

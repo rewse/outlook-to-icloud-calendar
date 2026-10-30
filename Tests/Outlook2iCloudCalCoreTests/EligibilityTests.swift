@@ -21,12 +21,12 @@ struct EligibilityTests {
     }
 
     @Test func reasonPrecedence() {
-        let e = event(response: "Decline", subject: "Canceled: X", isAllDay: true, isCanceled: true)
-        #expect(Eligibility.evaluate(e) == .canceled)
-        let d = event(response: "Decline", subject: "Declined: X", isAllDay: true)
-        #expect(Eligibility.evaluate(d) == .declined)
-        let a = event(response: "Decline", isAllDay: true)
-        #expect(Eligibility.evaluate(a) == .allDay)
+        let canceled = event(response: "Decline", subject: "Canceled: X", isAllDay: true, isCanceled: true)
+        #expect(Eligibility.evaluate(canceled) == .canceled)
+        let declined = event(response: "Decline", subject: "Declined: X", isAllDay: true)
+        #expect(Eligibility.evaluate(declined) == .declined)
+        let allDay = event(response: "Decline", isAllDay: true)
+        #expect(Eligibility.evaluate(allDay) == .allDay)
     }
 
     @Test func prefixOnlyAtStart() {

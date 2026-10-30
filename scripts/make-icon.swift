@@ -46,41 +46,41 @@ func cloudPath() -> CGPath {
     var path = CGPath(
         roundedRect: CGRect(x: 153, y: 280, width: 718, height: 240),
         cornerWidth: 120, cornerHeight: 120, transform: nil)
-    let bumps: [(x: CGFloat, y: CGFloat, r: CGFloat)] = [
-        (300, 470, 130), (468, 555, 185), (680, 505, 150),
+    // Each bump is a circle given by its bounding square.
+    let bumps = [
+        CGRect(x: 300 - 130, y: 470 - 130, width: 260, height: 260),
+        CGRect(x: 468 - 185, y: 555 - 185, width: 370, height: 370),
+        CGRect(x: 680 - 150, y: 505 - 150, width: 300, height: 300),
     ]
     for bump in bumps {
-        let circle = CGPath(
-            ellipseIn: CGRect(x: bump.x - bump.r, y: bump.y - bump.r, width: 2 * bump.r, height: 2 * bump.r),
-            transform: nil)
-        path = path.union(circle)
+        path = path.union(CGPath(ellipseIn: bump, transform: nil))
     }
     return path
 }
 
 /// Draws a calendar inside the cloud body: a rounded outline with a solid
 /// header band and a 3 x 4 grid of rounded day cells.
-func drawCalendar(in cg: CGContext) {
+func drawCalendar(in context: CGContext) {
     let frame = CGRect(x: 362, y: 325, width: 300, height: 270)
     let radius: CGFloat = 40
     let stroke: CGFloat = 26
     let outline = CGPath(roundedRect: frame, cornerWidth: radius, cornerHeight: radius, transform: nil)
-    cg.setFillColor(outlookBlue.cgColor)
+    context.setFillColor(outlookBlue.cgColor)
 
     // Outline ring: the outer rounded rectangle minus the inset one.
     let inner = CGPath(
         roundedRect: frame.insetBy(dx: stroke, dy: stroke),
         cornerWidth: radius - stroke, cornerHeight: radius - stroke, transform: nil)
-    cg.addPath(outline.subtracting(inner))
-    cg.fillPath()
+    context.addPath(outline.subtracting(inner))
+    context.fillPath()
 
     // Header band, clipped to the outline so its top corners stay rounded.
     let headerHeight: CGFloat = 78
-    cg.saveGState()
-    cg.addPath(outline)
-    cg.clip()
-    cg.fill(CGRect(x: frame.minX, y: frame.maxY - headerHeight, width: frame.width, height: headerHeight))
-    cg.restoreGState()
+    context.saveGState()
+    context.addPath(outline)
+    context.clip()
+    context.fill(CGRect(x: frame.minX, y: frame.maxY - headerHeight, width: frame.width, height: headerHeight))
+    context.restoreGState()
 
     // Day cells in 3 rows and 4 columns below the header.
     let cell: CGFloat = 36
@@ -98,17 +98,17 @@ func drawCalendar(in cg: CGContext) {
                 x: gridLeft + gapX + CGFloat(column) * (cell + gapX),
                 y: gridBottom + gapY + CGFloat(row) * (cell + gapY),
                 width: cell, height: cell)
-            cg.addPath(CGPath(roundedRect: rect, cornerWidth: 8, cornerHeight: 8, transform: nil))
+            context.addPath(CGPath(roundedRect: rect, cornerWidth: 8, cornerHeight: 8, transform: nil))
         }
     }
-    cg.fillPath()
+    context.fillPath()
 }
 
 let cloud = renderPNG { _ in
-    let cg = NSGraphicsContext.current!.cgContext
-    cg.setFillColor(NSColor.white.cgColor)
-    cg.addPath(cloudPath())
-    cg.fillPath()
+    let context = NSGraphicsContext.current!.cgContext
+    context.setFillColor(NSColor.white.cgColor)
+    context.addPath(cloudPath())
+    context.fillPath()
 }
 let calendar = renderPNG { _ in drawCalendar(in: NSGraphicsContext.current!.cgContext) }
 

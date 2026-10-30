@@ -6,36 +6,37 @@ public enum ParseError: Error, Equatable {
     case invalidDate(String)
 }
 
-/// Parses the text printed by `mcporter call ... calendar_view`.
-public enum CalendarViewParser {
-    private struct RawEvent: Decodable {
-        let meetingId: String
-        let subject: String
-        let start: String
-        let end: String
-        let location: String
-        let isAllDay: Bool
-        let isCanceled: Bool
-        let response: String
+/// One event as `calendar_view` returns it.
+private struct RawEvent: Decodable {
+    let meetingId: String
+    let subject: String
+    let start: String
+    let end: String
+    let location: String
+    let isAllDay: Bool
+    let isCanceled: Bool
+    let response: String
 
-        private enum CodingKeys: String, CodingKey {
-            case meetingId, subject, start, end, location, isAllDay, isCanceled, response
-        }
-
-        init(from decoder: Decoder) throws {
-            let c = try decoder.container(keyedBy: CodingKeys.self)
-            meetingId = try c.decode(String.self, forKey: .meetingId)
-            subject = try c.decodeIfPresent(String.self, forKey: .subject) ?? ""
-            start = try c.decode(String.self, forKey: .start)
-            end = try c.decode(String.self, forKey: .end)
-            location = try c.decodeIfPresent(String.self, forKey: .location) ?? ""
-            isAllDay = try c.decode(Bool.self, forKey: .isAllDay)
-            isCanceled = try c.decode(Bool.self, forKey: .isCanceled)
-            // An empty response is an unrecognized one, which Eligibility excludes.
-            response = try c.decodeIfPresent(String.self, forKey: .response) ?? ""
-        }
+    private enum CodingKeys: String, CodingKey {
+        case meetingId, subject, start, end, location, isAllDay, isCanceled, response
     }
 
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        meetingId = try container.decode(String.self, forKey: .meetingId)
+        subject = try container.decodeIfPresent(String.self, forKey: .subject) ?? ""
+        start = try container.decode(String.self, forKey: .start)
+        end = try container.decode(String.self, forKey: .end)
+        location = try container.decodeIfPresent(String.self, forKey: .location) ?? ""
+        isAllDay = try container.decode(Bool.self, forKey: .isAllDay)
+        isCanceled = try container.decode(Bool.self, forKey: .isCanceled)
+        // An empty response is an unrecognized one, which Eligibility excludes.
+        response = try container.decodeIfPresent(String.self, forKey: .response) ?? ""
+    }
+}
+
+/// Parses the text printed by `mcporter call ... calendar_view`.
+public enum CalendarViewParser {
     /// Returns every event in `output`, or throws; never returns a partial list.
     public static func parse(_ output: String) throws -> [OutlookEvent] {
         guard let json = extractArray(output) else { throw ParseError.noJSONArray }

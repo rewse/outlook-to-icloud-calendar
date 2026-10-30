@@ -45,7 +45,11 @@ struct MCPorterSourceTests {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let file = dir.appending(path: "cookie")
         if let expiry {
-            let line = "#HttpOnly_midway-auth.amazon.com\tFALSE\t/\tTRUE\t\(Int(expiry.timeIntervalSince1970))\tsession\tdummy"
+            let fields = [
+                "#HttpOnly_midway-auth.amazon.com", "FALSE", "/", "TRUE",
+                "\(Int(expiry.timeIntervalSince1970))", "session", "dummy",
+            ]
+            let line = fields.joined(separator: "\t")
             try line.write(to: file, atomically: true, encoding: .utf8)
         }
         return file
@@ -167,11 +171,11 @@ private final class Clock: @unchecked Sendable {
 }
 
 struct ProcessCommandRunnerTests {
-    private let sh = URL(fileURLWithPath: "/bin/sh")
+    private let shell = URL(fileURLWithPath: "/bin/sh")
 
     @Test func capturesOutputAndExitCode() async throws {
         let result = try await ProcessCommandRunner().run(
-            executable: sh, arguments: ["-c", "echo out; echo err >&2; exit 3"],
+            executable: shell, arguments: ["-c", "echo out; echo err >&2; exit 3"],
             environment: [:], timeout: .seconds(10))
         #expect(result.exitCode == 3)
         #expect(result.stdout == "out\n")
@@ -180,7 +184,7 @@ struct ProcessCommandRunnerTests {
 
     @Test func readsLargeOutputWithoutBlocking() async throws {
         let result = try await ProcessCommandRunner().run(
-            executable: sh, arguments: ["-c", "yes 0123456789 | head -c 600000"],
+            executable: shell, arguments: ["-c", "yes 0123456789 | head -c 600000"],
             environment: [:], timeout: .seconds(10))
         #expect(result.stdout.utf8.count == 600_000)
     }
@@ -192,7 +196,7 @@ struct ProcessCommandRunnerTests {
         let start = clock.now
         do {
             _ = try await ProcessCommandRunner().run(
-                executable: sh, arguments: ["-c", script], environment: [:], timeout: timeout)
+                executable: shell, arguments: ["-c", script], environment: [:], timeout: timeout)
             Issue.record("expected a throw")
             return (.zero, CancellationError())
         } catch {
@@ -227,7 +231,7 @@ struct ProcessCommandRunnerTests {
     @Test func cancellationTerminatesChild() async throws {
         let task = Task {
             try await ProcessCommandRunner().run(
-                executable: sh, arguments: ["-c", "exec sleep 30"], environment: [:], timeout: .seconds(60))
+                executable: shell, arguments: ["-c", "exec sleep 30"], environment: [:], timeout: .seconds(60))
         }
         try await Task.sleep(for: .milliseconds(300))
         let clock = ContinuousClock()

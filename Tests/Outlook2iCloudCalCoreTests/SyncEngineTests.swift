@@ -144,7 +144,7 @@ private func engine(_ source: FakeSource, _ store: FakeStore, log: SyncLog? = ni
     buckets[6] = [
         event(
             id: "d1", response: "Decline", subject: "Declined: Review",
-            start: "2027-04-05T10:00:00", end: "2027-04-05T11:00:00")
+            start: "2027-04-05T10:00:00", end: "2027-04-05T11:00:00"),
     ]
     let store = FakeStore()
     let outcome = await engine(source(buckets), store).run(.normal, now: now)
