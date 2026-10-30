@@ -1,13 +1,15 @@
-import SwiftUI
 import Outlook2iCloudCalCore
+import SwiftUI
 
 @main
 struct Outlook2iCloudCalApp: App {
+    @StateObject private var model = AppModel()
+
     var body: some Scene {
         MenuBarExtra {
-            Button("終了") { NSApp.terminate(nil) }
+            MenuContent(model: model)
         } label: {
-            Image(systemName: "calendar")
+            Image(nsImage: StatusIcon.image(for: model.status.badge))
         }
     }
 }
