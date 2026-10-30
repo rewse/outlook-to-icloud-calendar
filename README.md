@@ -39,7 +39,7 @@ The icon is a template image that follows light and dark mode. A red "!" marks a
 7. Reset and refetch...
 8. Quit
 
-"Reset and refetch..." asks for confirmation, then deletes everything in `Business` within the range, including events the app did not create, and fetches again. It replaces the events only after a fetch has succeeded and passed the completeness check, so running it with a lapsed certificate leaves `Business` untouched.
+"Reset and refetch..." asks for confirmation, then deletes everything in `Business` within the range, including events the app did not create, and fetches again. Recurring events are left alone, since the app never creates them. It replaces the events only after a fetch has succeeded and passed the completeness check, so running it with a lapsed certificate leaves `Business` untouched.
 
 ## Requirements
 

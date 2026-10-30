@@ -38,7 +38,11 @@ final class EventKitStore: CalendarStore, @unchecked Sendable {
             let calendar = try businessCalendar()
             let predicate = eventStore.predicateForEvents(
                 withStart: range.start, end: range.end, calendars: [calendar])
-            return eventStore.events(matching: predicate).map { event in
+            // Recurring events are skipped: this app never creates them, and all occurrences
+            // share one `calendarItemIdentifier`, so deleting by that ID could remove an
+            // occurrence outside the window. They are never managed, deleted, or counted.
+            let events = eventStore.events(matching: predicate).filter { !$0.hasRecurrenceRules }
+            return events.map { event in
                 StoredEvent(
                     storeID: event.calendarItemIdentifier,
                     meetingId: EventURL.meetingId(from: event.url),
