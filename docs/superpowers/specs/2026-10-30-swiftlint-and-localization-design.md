@@ -9,7 +9,9 @@ Swift のコードを SwiftLint で検査し、pre-commit と GitHub Actions の
 - `.pre-commit-config.yaml` に `realm/SwiftLint` のフック（`id: swiftlint`）を足し、`rev:` を v0.65.1 のコミット SHA に固定する。フックは `language: swift` で SwiftLint をソースからビルドする。
 - `lint.yml` は今のまま `pre-commit run --all-files` を呼ぶ。`ubuntu-latest` のランナーには Swift が入っているので、そこで SwiftLint がビルドされる。CI の時間は数分延びる。
 - 設定はリポジトリのルートの `.swiftlint.yml` に置き、既定のルールを使う。対象は `Package.swift`、`Sources`、`Tests`、`scripts` とし、`.build` と `build` を外す。
-- 指摘は抑止せずに直す。抑止するときは、`~/git/AGENTS.md` に従って同じ行に理由を書く。
+- フックに `--strict` を付け、警告でも失敗させる。指摘は抑止せずに直す。抑止するときは、`~/git/AGENTS.md` に従って同じ行に理由を書く（設計上の判断）。
+- `scripts/make-icon.swift` も対象に含め、指摘のない状態にする（設計上の判断）。
+- CI でソースからのビルドが失敗するか、15 分以上かかるときは、却下した `language: system` の方式に切り替え、CI ではリリースのバイナリをチェックサムを確かめて入れる。そのときは本人に報告する（設計上の判断）。
 
 ## 英語化
 
@@ -19,7 +21,8 @@ Swift のコードを SwiftLint で検査し、pre-commit と GitHub Actions の
 - 文言は String Catalog に置く。メニュー、ダイアログ、通知の文言は `Resources/Localizable.xcstrings` に、カレンダーの利用目的（`NSCalendarsFullAccessUsageDescription`）は `Resources/InfoPlist.xcstrings` に置く。
 - コードでは `String(localized:)` を使い、キーには英語の文言そのものを使う。Core も同じ書き方にする（Foundation だけで書けるので、Core に UI を持ち込まないという決まりには反しない）。
 - `scripts/build-app.sh` が `xcrun xcstringstool compile` で両方のカタログをコンパイルし、`Contents/Resources/en.lproj` と `ja.lproj` に置く。`Info.plist` には `CFBundleDevelopmentRegion` に `en` を設定し、利用目的は英語にする。
-- 英語で数によって形が変わる文言（「1 hour」と「3 hours」など）は、カタログの複数形の機能を使う。
+- 英語で数によって形が変わる文言は、カタログの複数形の機能を使う。対象は時間（1 hour / 3 hours）、保留中の削除（1 deletion on hold / 42 deletions on hold）、削除の確認（1 held event / 6 held events）である。「A added / U updated」のような件数の並びは形が変わらないので対象にしない（設計上の判断）。
+- アプリ名「Outlook2iCloudCal」（通知のタイトル）は訳さない。`AppModel` にあるカレンダーへのアクセスが許可されていないときの理由は、ログにしか出ないので英語の文言に置き換え、カタログには入れない。
 - ログは今のまま英語だけにする。調べるときに読むもので、翻訳はいらない。`SyncOutcome.failed` の理由もログにしか出ないので、英語のまま翻訳しない。
 
 ### テスト
