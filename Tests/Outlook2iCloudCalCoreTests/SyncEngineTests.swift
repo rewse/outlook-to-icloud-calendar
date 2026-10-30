@@ -122,6 +122,23 @@ private func engine(_ source: FakeSource, _ store: FakeStore, log: SyncLog? = ni
     #expect(outcome == .incompleteFetch(bucketCounts: [1, 1, 1, 1, 1, 1, 0]))
 }
 
+@Test func emptyCallDiscardsRunEvenWhenItsBucketIsFilled() async throws {
+    var buckets = fillers
+    // Call 2 also returns an event on bucket 3's first day, but call 3 returns nothing.
+    buckets[2].append(event(id: "edge", start: "2026-12-30T10:00:00", end: "2026-12-30T11:00:00"))
+    buckets[3] = []
+    let store = FakeStore([stored(extra("gone"))])
+    let (log, directory) = makeLog()
+    let outcome = await engine(source(buckets), store, log: log).run(.normal, now: now)
+    #expect(outcome == .incompleteFetch(bucketCounts: [1, 1, 2, 0, 1, 1, 1]))
+    #expect(await store.writeCount == 0)
+    #expect(await store.commitCount == 0)
+    let text = try logText(directory)
+    #expect(
+        text.contains(
+            "gate1 discard bucketCounts=[1, 1, 1, 1, 1, 1, 1] callCounts=[1, 1, 2, 0, 1, 1, 1]"))
+}
+
 @Test func declinedOnlyBucketPassesGate1() async {
     var buckets = fillers
     buckets[6] = [
@@ -322,7 +339,9 @@ func laterStoreErrorRollsBackEarlierWrites(_ failure: FakeStoreFailure) async {
     #expect(text.contains("sync start mode=normal window=2026-09-30 00:00-2027-04-30 00:00"))
     #expect(text.contains("bucket 1 2026-10-30 00:00-2026-11-30 00:00 fetched=5"))
     #expect(text.contains("bucket 6 2027-03-30 00:00-2027-04-30 00:00 fetched=1"))
-    #expect(text.contains("gate1 pass bucketCounts=[1, 5, 1, 1, 1, 1, 1]"))
+    #expect(
+        text.contains(
+            "gate1 pass bucketCounts=[1, 5, 1, 1, 1, 1, 1] callCounts=[1, 5, 1, 1, 1, 1, 1]"))
     #expect(text.contains("excluded canceled=1 declined=0 allDay=0 response(Tentative)=2"))
     #expect(text.contains("add \"Extra new\" 2026-11-05 13:00-13:30"))
     #expect(text.contains("update \"Sample\" 2027-04-05 10:00-11:00"))

@@ -39,12 +39,15 @@ public enum SyncOutcome: Equatable, Sendable {
     /// deletions listed in `storeIDs` were not.
     case heldDeletions(SyncCounts, managed: Int, storeIDs: [String])
     case certificateExpired
+    /// Gate 1 discarded the run. `bucketCounts` holds the per-call counts when a
+    /// call returned nothing, else the per-bucket counts.
     case incompleteFetch(bucketCounts: [Int])
     case failed(String)
 }
 
 /// Mirrors Outlook events into the calendar store. Nothing is written unless
-/// every bucket of the window was fetched and returned at least one event.
+/// every bucket call returned at least one event and every bucket of the
+/// window holds at least one event.
 public struct SyncEngine: Sendable {
     private let source: OutlookSource
     private let store: CalendarStore
@@ -64,11 +67,13 @@ public struct SyncEngine: Sendable {
         log.write("sync start mode=\(mode) window=\(format.span(window.range))")
 
         var fetched: [OutlookEvent] = []
+        var callCounts: [Int] = []
         for (index, bucket) in window.buckets.enumerated() {
             let prefix = "bucket \(index) \(format.span(bucket))"
             do {
                 let events = try await source.fetch(bucket)
                 log.write("\(prefix) fetched=\(events.count)")
+                callCounts.append(events.count)
                 fetched += events
             } catch let error as FetchError {
                 log.write("\(prefix) error: \(error)")
@@ -83,12 +88,18 @@ public struct SyncEngine: Sendable {
         let inWindow = dedupeByMeetingId(fetched).filter {
             window.contains(start: $0.start, end: $0.end)
         }
+        // Gate 1 checks both the raw count of each call and the count sorted into each bucket:
+        // an event on a bucket's first day returned by the previous call keeps that bucket
+        // non-zero even when the bucket's own call returned nothing.
         let bucketCounts = window.bucketCounts(inWindow)
-        guard !bucketCounts.contains(0) else {
-            log.write("gate1 discard bucketCounts=\(bucketCounts)")
-            return finish(.incompleteFetch(bucketCounts: bucketCounts))
+        let gateSummary = "bucketCounts=\(bucketCounts) callCounts=\(callCounts)"
+        if callCounts.contains(0) || bucketCounts.contains(0) {
+            log.write("gate1 discard \(gateSummary)")
+            return finish(
+                .incompleteFetch(
+                    bucketCounts: callCounts.contains(0) ? callCounts : bucketCounts))
         }
-        log.write("gate1 pass bucketCounts=\(bucketCounts)")
+        log.write("gate1 pass \(gateSummary)")
 
         var exclusions: [ExclusionReason: Int] = [:]
         let desired = inWindow.filter { event in
