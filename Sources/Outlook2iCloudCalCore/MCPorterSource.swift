@@ -15,7 +15,7 @@ public struct MCPorterSource: OutlookSource {
         runner: CommandRunner,
         mcporter: URL = URL(fileURLWithPath: "/opt/homebrew/bin/mcporter"),
         cookieFile: URL = FileManager.default.homeDirectoryForCurrentUser.appending(path: ".midway/cookie"),
-        now: @escaping @Sendable () -> Date = Date.init,
+        now: @escaping @Sendable () -> Date = { Date() },
         calendar: Calendar = .current
     ) {
         self.runner = runner

@@ -51,6 +51,10 @@ struct MCPorterSourceTests {
         return file
     }
 
+    private func removeDirectory(of cookie: URL) {
+        try? FileManager.default.removeItem(at: cookie.deletingLastPathComponent())
+    }
+
     private func source(_ runner: FakeRunner, cookie: URL, now: @escaping @Sendable () -> Date) -> MCPorterSource {
         MCPorterSource(
             runner: runner, mcporter: URL(fileURLWithPath: "/fake/mcporter"), cookieFile: cookie,
@@ -60,6 +64,7 @@ struct MCPorterSourceTests {
     @Test func buildsCalendarViewArguments() async throws {
         let runner = FakeRunner { CommandResult(exitCode: 0, stdout: validOutput, stderr: "") }
         let cookie = try cookieFile(expiry)
+        defer { removeDirectory(of: cookie) }
         let events = try await source(runner, cookie: cookie) { expiry.addingTimeInterval(-60) }.fetch(interval)
         #expect(events.count == 1)
         let call = try #require(runner.calls.first)
@@ -77,6 +82,7 @@ struct MCPorterSourceTests {
     @Test func expiredCookieSkipsCommand() async throws {
         let runner = FakeRunner { CommandResult(exitCode: 0, stdout: validOutput, stderr: "") }
         let cookie = try cookieFile(expiry)
+        defer { removeDirectory(of: cookie) }
         await #expect(throws: FetchError.certificateExpired) {
             try await source(runner, cookie: cookie) { expiry.addingTimeInterval(1) }.fetch(interval)
         }
@@ -85,6 +91,7 @@ struct MCPorterSourceTests {
 
     @Test func nonZeroExitWithExpiredCookieAfterRunIsCertificateExpired() async throws {
         let cookie = try cookieFile(expiry)
+        defer { removeDirectory(of: cookie) }
         let clock = Clock(times: [expiry.addingTimeInterval(-1), expiry.addingTimeInterval(1)])
         let runner = FakeRunner { CommandResult(exitCode: 1, stdout: "", stderr: "boom") }
         await #expect(throws: FetchError.certificateExpired) {
@@ -95,14 +102,36 @@ struct MCPorterSourceTests {
 
     @Test func nonZeroExitIsCommandFailed() async throws {
         let cookie = try cookieFile(expiry)
+        defer { removeDirectory(of: cookie) }
         let runner = FakeRunner { CommandResult(exitCode: 1, stdout: "", stderr: "boom") }
         await #expect(throws: FetchError.commandFailed("boom")) {
             try await source(runner, cookie: cookie) { expiry.addingTimeInterval(-60) }.fetch(interval)
         }
     }
 
+    @Test func missingCookieFileIsCertificateExpired() async throws {
+        let runner = FakeRunner { CommandResult(exitCode: 0, stdout: validOutput, stderr: "") }
+        let cookie = try cookieFile(nil)
+        defer { removeDirectory(of: cookie) }
+        await #expect(throws: FetchError.certificateExpired) {
+            try await source(runner, cookie: cookie) { expiry.addingTimeInterval(-60) }.fetch(interval)
+        }
+        #expect(runner.calls.isEmpty)
+    }
+
+    @Test func stderrIsCutAt500Characters() async throws {
+        let cookie = try cookieFile(expiry)
+        defer { removeDirectory(of: cookie) }
+        let long = String(repeating: "x", count: 800)
+        let runner = FakeRunner { CommandResult(exitCode: 1, stdout: "", stderr: long) }
+        await #expect(throws: FetchError.commandFailed(String(long.prefix(500)))) {
+            try await source(runner, cookie: cookie) { expiry.addingTimeInterval(-60) }.fetch(interval)
+        }
+    }
+
     @Test func timeoutPropagates() async throws {
         let cookie = try cookieFile(expiry)
+        defer { removeDirectory(of: cookie) }
         let runner = FakeRunner { throw FetchError.timedOut }
         await #expect(throws: FetchError.timedOut) {
             try await source(runner, cookie: cookie) { expiry.addingTimeInterval(-60) }.fetch(interval)
@@ -111,6 +140,7 @@ struct MCPorterSourceTests {
 
     @Test func garbageOutputIsInvalidOutput() async throws {
         let cookie = try cookieFile(expiry)
+        defer { removeDirectory(of: cookie) }
         let runner = FakeRunner { CommandResult(exitCode: 0, stdout: "not json", stderr: "") }
         do {
             _ = try await source(runner, cookie: cookie) { expiry.addingTimeInterval(-60) }.fetch(interval)
@@ -155,11 +185,55 @@ struct ProcessCommandRunnerTests {
         #expect(result.stdout.utf8.count == 600_000)
     }
 
-    @Test func timeoutThrowsTimedOut() async throws {
-        await #expect(throws: FetchError.timedOut) {
-            try await ProcessCommandRunner().run(
-                executable: sh, arguments: ["-c", "exec sleep 5"],
-                environment: [:], timeout: .milliseconds(500))
+    private func elapsed(
+        _ script: String, timeout: Duration
+    ) async -> (Duration, any Error) {
+        let clock = ContinuousClock()
+        let start = clock.now
+        do {
+            _ = try await ProcessCommandRunner().run(
+                executable: sh, arguments: ["-c", script], environment: [:], timeout: timeout)
+            Issue.record("expected a throw")
+            return (.zero, CancellationError())
+        } catch {
+            return (clock.now - start, error)
         }
+    }
+
+    @Test func timeoutThrowsTimedOut() async {
+        let (time, error) = await elapsed("exec sleep 5", timeout: .milliseconds(500))
+        #expect(error as? FetchError == .timedOut)
+        #expect(time < .seconds(3))
+    }
+
+    @Test func killsChildThatIgnoresTerminate() async {
+        let (time, error) = await elapsed("trap '' TERM; while :; do sleep 1; done", timeout: .milliseconds(500))
+        #expect(error as? FetchError == .timedOut)
+        #expect(time < .seconds(5))
+    }
+
+    @Test func grandchildHoldingPipeDoesNotBlockTimeout() async {
+        let (time, error) = await elapsed("sleep 30 & sleep 30", timeout: .milliseconds(500))
+        #expect(error as? FetchError == .timedOut)
+        #expect(time < .seconds(3))
+    }
+
+    @Test func backgroundChildHoldingPipeAfterExitTimesOut() async {
+        let (time, error) = await elapsed("sleep 30 & exit 0", timeout: .milliseconds(500))
+        #expect(error as? FetchError == .timedOut)
+        #expect(time < .seconds(3))
+    }
+
+    @Test func cancellationTerminatesChild() async throws {
+        let task = Task {
+            try await ProcessCommandRunner().run(
+                executable: sh, arguments: ["-c", "exec sleep 30"], environment: [:], timeout: .seconds(60))
+        }
+        try await Task.sleep(for: .milliseconds(300))
+        let clock = ContinuousClock()
+        let start = clock.now
+        task.cancel()
+        await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(clock.now - start < .seconds(3))
     }
 }
