@@ -50,29 +50,12 @@ The `dmg` job signs with the same "Outlook2iCloudCal Developer" certificate as l
 
 A re-run uses the workflow and scripts at the tag. Re-run a `dmg` job that failed for a runner problem; `--clobber` replaces the files. When the cause is in the repository, fix it and push a new patch tag.
 
-### One-time setup of the release secrets
+### The release certificate
 
-The repository admin does this once on the Mac that holds the certificate, before the first tag that should carry a DMG. Use `gh` from a host that can reach GitHub.
+The release certificate's `.p12` and its password are in 1Password: item "Outlook2iCloudCal - Singing p12" in the Private vault, the password in its `credential` field and `signing.p12` attached. It is the only readable copy besides the login keychain of the Mac that made it; GitHub secrets cannot be read back, and Keychain Access could not export the identity as a `.p12`.
 
-1. Create the environment and allow only `v*` tags:
+On another Mac, import that `.p12` instead of running `make cert`. `make cert` makes a different certificate, so `make dmg` stops on `scripts/signing-certificate-sha1` and the app asks for calendar access again.
 
-   ```sh
-   gh api -X PUT repos/rewse/outlook-to-icloud-calendar/environments/release \
-     -F 'deployment_branch_policy[protected_branches]=false' \
-     -F 'deployment_branch_policy[custom_branch_policies]=true'
-   gh api -X POST repos/rewse/outlook-to-icloud-calendar/environments/release/deployment-branch-policies \
-     -f name='v*' -f type=tag
-   ```
-
-2. Export only this identity. Run `DIR="$(mktemp -d /tmp/o2i-p12.XXXXXX)" && open "$DIR"`. In Keychain Access, open the login keychain, select "Outlook2iCloudCal Developer" under My Certificates, choose File > Export Items, save it as `signing.p12` in that directory, and set a password. (`security export` would export every identity in the keychain.)
-3. Store it and its password, then delete the export:
-
-   ```sh
-   base64 -i "$DIR/signing.p12" | gh secret set SIGNING_CERTIFICATE_P12 --env release --repo rewse/outlook-to-icloud-calendar
-   gh secret set SIGNING_CERTIFICATE_PASSWORD --env release --repo rewse/outlook-to-icloud-calendar
-   command rm -rf "$DIR"
-   ```
-
-If you ever recreate the certificate, update both secrets and `scripts/signing-certificate-sha1` (`security find-certificate -c "Outlook2iCloudCal Developer" -Z | grep SHA-1`), and expect every Mac to ask for calendar access once more.
+If you recreate the certificate, update the 1Password item, both secrets and `scripts/signing-certificate-sha1` together, and expect every Mac to ask for calendar access once more.
 
 The ruleset `Protect release tags` restricts creating, updating, and deleting `v*` tags to the repository admin role. Never rename `release.yml`.
