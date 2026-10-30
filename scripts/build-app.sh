@@ -26,7 +26,9 @@ for catalog in Resources/Localizable.xcstrings Resources/InfoPlist.xcstrings; do
     xcrun xcstringstool compile "$catalog" --output-directory "$APP/Contents/Resources"
 done
 
-ICON_TMP="$(mktemp -d build/icon.XXXXXX)"
+# actool fails to open a relative path when the checkout sits under a
+# symlinked directory such as /tmp, so hand it a physical absolute path.
+ICON_TMP="$(cd "$(mktemp -d build/icon.XXXXXX)" && pwd -P)"
 trap 'rm -rf "$ICON_TMP"' EXIT
 swift scripts/make-icon.swift "$ICON_TMP/AppIcon.icon"
 # actool emits Assets.car (the Icon Composer icon used by macOS 26 and later),
