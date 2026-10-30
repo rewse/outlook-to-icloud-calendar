@@ -3,41 +3,6 @@ import Testing
 
 @testable import Outlook2iCloudCalCore
 
-let cal: Calendar = {
-    var calendar = Calendar(identifier: .gregorian)
-    calendar.timeZone = TimeZone(identifier: "Asia/Tokyo")!
-    return calendar
-}()
-
-func tokyo(_ local: String) -> Date {
-    let formatter = DateFormatter()
-    formatter.calendar = cal
-    formatter.timeZone = cal.timeZone
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-    return formatter.date(from: local)!
-}
-
-func event(
-    id: String = "id-1",
-    response: String = "Accept",
-    subject: String = "Sample",
-    start: String = "2026-11-02T10:00:00",
-    end: String = "2026-11-02T11:00:00",
-    isAllDay: Bool = false,
-    isCanceled: Bool = false
-) -> OutlookEvent {
-    OutlookEvent(
-        meetingId: id,
-        subject: subject,
-        start: tokyo(start),
-        end: tokyo(end),
-        location: "",
-        isAllDay: isAllDay,
-        isCanceled: isCanceled,
-        response: response)
-}
-
 struct SyncWindowTests {
     let now = tokyo("2026-10-30T15:12:00")
 
@@ -82,5 +47,26 @@ struct SyncWindowTests {
             event(id: "f", start: "2027-06-01T10:00:00", end: "2027-06-01T11:00:00"),
         ]
         #expect(w.bucketCounts(events) == [2, 1, 0, 0, 0, 0, 1])
+    }
+
+    @Test func monthEndClampingKeepsBucketsContiguous() {
+        let w = SyncWindow(now: tokyo("2027-03-31T10:00:00"), calendar: cal)
+        #expect(w.range.start == tokyo("2027-02-28T00:00:00"))
+        #expect(w.range.end == tokyo("2027-09-30T00:00:00"))
+        expectContiguous(w)
+    }
+
+    @Test func leapDayKeepsBucketsContiguous() {
+        let w = SyncWindow(now: tokyo("2028-02-29T10:00:00"), calendar: cal)
+        expectContiguous(w)
+    }
+
+    private func expectContiguous(_ w: SyncWindow) {
+        #expect(w.buckets.count == 7)
+        #expect(w.buckets[0].start == w.range.start)
+        #expect(w.buckets[6].end == w.range.end)
+        for i in 0..<6 {
+            #expect(w.buckets[i].end == w.buckets[i + 1].start)
+        }
     }
 }

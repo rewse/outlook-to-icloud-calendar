@@ -15,6 +15,11 @@ struct EligibilityTests {
         #expect(Eligibility.evaluate(event(response: "NotResponded")) == .response("NotResponded"))
     }
 
+    @Test func responseMatchIsExact() {
+        #expect(Eligibility.evaluate(event(response: "")) == .response(""))
+        #expect(Eligibility.evaluate(event(response: "accept")) == .response("accept"))
+    }
+
     @Test func reasonPrecedence() {
         let e = event(response: "Decline", subject: "Canceled: X", isAllDay: true, isCanceled: true)
         #expect(Eligibility.evaluate(e) == .canceled)
