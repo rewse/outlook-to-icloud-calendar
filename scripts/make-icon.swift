@@ -31,42 +31,86 @@ func renderPNG(_ draw: (CGFloat) -> Void) -> Data {
     return png
 }
 
-/// Returns an SF Symbol tinted with a single color at the given point size.
-func symbol(_ name: String, pointSize: CGFloat, weight: NSFont.Weight, color: NSColor) -> NSImage {
-    let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: weight)
-        .applying(.init(paletteColors: [color]))
-    guard let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-        .withSymbolConfiguration(config)
-    else { fatalError("SF Symbol '\(name)' unavailable") }
-    return image
-}
-
-/// Draws an image scaled to the given width, centered on the given point.
-func draw(_ image: NSImage, width: CGFloat, center: CGPoint) {
-    let height = width * image.size.height / image.size.width
-    image.draw(in: NSRect(x: center.x - width / 2, y: center.y - height / 2, width: width, height: height))
-}
-
 let background = renderPNG { size in
     let gradient = NSGradient(starting: outlookBlue, ending: icloudBlue)!
     // Top-left to bottom-right (AppKit's origin is bottom-left).
     gradient.draw(from: CGPoint(x: 0, y: size), to: CGPoint(x: size, y: 0), options: [])
 }
 
-// SF Symbol images carry side padding, so the cloud is drawn wider than its
-// visible 70% of the canvas. The cloud's body sits below the symbol's center,
-// so the calendar is shifted down to land inside it.
-let cloudWidth = CGFloat(canvas) * 0.79
-let cloud = renderPNG { size in
-    draw(
-        symbol("cloud.fill", pointSize: cloudWidth, weight: .regular, color: .white),
-        width: cloudWidth, center: CGPoint(x: size / 2, y: size / 2))
+// The shapes are drawn by hand, so the icon contains no SF Symbols. Geometry
+// is in canvas units (1024 x 1024, origin bottom-left).
+
+/// Returns a cloud silhouette about 70% of the canvas wide: a flat-bottomed
+/// pill with three circular bumps, the largest center-left, unioned into one path.
+func cloudPath() -> CGPath {
+    var path = CGPath(
+        roundedRect: CGRect(x: 153, y: 280, width: 718, height: 240),
+        cornerWidth: 120, cornerHeight: 120, transform: nil)
+    let bumps: [(x: CGFloat, y: CGFloat, r: CGFloat)] = [
+        (300, 470, 130), (468, 555, 185), (680, 505, 150),
+    ]
+    for bump in bumps {
+        let circle = CGPath(
+            ellipseIn: CGRect(x: bump.x - bump.r, y: bump.y - bump.r, width: 2 * bump.r, height: 2 * bump.r),
+            transform: nil)
+        path = path.union(circle)
+    }
+    return path
 }
-let calendar = renderPNG { size in
-    draw(
-        symbol("calendar", pointSize: cloudWidth, weight: .semibold, color: outlookBlue),
-        width: cloudWidth * 0.46, center: CGPoint(x: size / 2, y: size / 2 - cloudWidth * 0.07))
+
+/// Draws a calendar inside the cloud body: a rounded outline with a solid
+/// header band and a 3 x 4 grid of rounded day cells.
+func drawCalendar(in cg: CGContext) {
+    let frame = CGRect(x: 362, y: 325, width: 300, height: 270)
+    let radius: CGFloat = 40
+    let stroke: CGFloat = 26
+    let outline = CGPath(roundedRect: frame, cornerWidth: radius, cornerHeight: radius, transform: nil)
+    cg.setFillColor(outlookBlue.cgColor)
+
+    // Outline ring: the outer rounded rectangle minus the inset one.
+    let inner = CGPath(
+        roundedRect: frame.insetBy(dx: stroke, dy: stroke),
+        cornerWidth: radius - stroke, cornerHeight: radius - stroke, transform: nil)
+    cg.addPath(outline.subtracting(inner))
+    cg.fillPath()
+
+    // Header band, clipped to the outline so its top corners stay rounded.
+    let headerHeight: CGFloat = 78
+    cg.saveGState()
+    cg.addPath(outline)
+    cg.clip()
+    cg.fill(CGRect(x: frame.minX, y: frame.maxY - headerHeight, width: frame.width, height: headerHeight))
+    cg.restoreGState()
+
+    // Day cells in 3 rows and 4 columns below the header.
+    let cell: CGFloat = 36
+    let columns = 4
+    let rows = 3
+    let gridLeft = frame.minX + stroke
+    let gridWidth = frame.width - 2 * stroke
+    let gridBottom = frame.minY + stroke
+    let gridHeight = frame.height - stroke - headerHeight
+    let gapX = (gridWidth - CGFloat(columns) * cell) / CGFloat(columns + 1)
+    let gapY = (gridHeight - CGFloat(rows) * cell) / CGFloat(rows + 1)
+    for row in 0..<rows {
+        for column in 0..<columns {
+            let rect = CGRect(
+                x: gridLeft + gapX + CGFloat(column) * (cell + gapX),
+                y: gridBottom + gapY + CGFloat(row) * (cell + gapY),
+                width: cell, height: cell)
+            cg.addPath(CGPath(roundedRect: rect, cornerWidth: 8, cornerHeight: 8, transform: nil))
+        }
+    }
+    cg.fillPath()
 }
+
+let cloud = renderPNG { _ in
+    let cg = NSGraphicsContext.current!.cgContext
+    cg.setFillColor(NSColor.white.cgColor)
+    cg.addPath(cloudPath())
+    cg.fillPath()
+}
+let calendar = renderPNG { _ in drawCalendar(in: NSGraphicsContext.current!.cgContext) }
 
 let iconJSON = """
     {
