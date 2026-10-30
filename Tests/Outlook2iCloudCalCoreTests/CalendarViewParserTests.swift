@@ -33,11 +33,38 @@ private func fixture(_ name: String) throws -> String {
 
     @Test func rejectsErrorOutputContainingJSONLikeBrackets() {
         let output = "[mcporter] MCP error -32602: invalid\n[\n  {\n    \"received\": \"x\"\n  }\n]"
-        #expect(throws: ParseError.self) { try CalendarViewParser.parse(output) }
+        #expect(throws: ParseError.noJSONArray) { try CalendarViewParser.parse(output) }
     }
 
     @Test func rejectsPartialOrMalformedJSON() {
-        #expect(throws: ParseError.self) { try CalendarViewParser.parse("[{\"meetingId\": \"a\"}]") }
+        do {
+            _ = try CalendarViewParser.parse("[{\"meetingId\": \"a\"}]")
+            Issue.record("expected invalidJSON")
+        } catch ParseError.invalidJSON {
+        } catch {
+            Issue.record("unexpected error: \(error)")
+        }
+    }
+
+    @Test func rejectsArraysEmbeddedMidLine() {
+        let outputs = [
+            "[mcporter] MCP error -32602: received [] expected array",
+            "[mcporter] MCP error: got [{\"a\":1}] then more text]",
+        ]
+        for output in outputs {
+            #expect(throws: ParseError.noJSONArray) { try CalendarViewParser.parse(output) }
+        }
+    }
+
+    @Test func defaultsNullOrMissingLocationToEmpty() throws {
+        let base = """
+            "meetingId":"a","subject":"s","start":"2026-10-30T09:00:00+09:00",\
+            "end":"2026-10-30T10:00:00+09:00","isCanceled":false,"isAllDay":false,"response":"Accept"
+            """
+        let nullLocation = try CalendarViewParser.parse("[{\(base),\"location\":null}]")
+        let missingLocation = try CalendarViewParser.parse("[{\(base)}]")
+        #expect(nullLocation.map { $0.location } == [""])
+        #expect(missingLocation.map { $0.location } == [""])
     }
 
     @Test func rejectsInvalidDate() {

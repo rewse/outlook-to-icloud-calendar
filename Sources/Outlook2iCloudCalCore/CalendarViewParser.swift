@@ -17,6 +17,22 @@ public enum CalendarViewParser {
         let isAllDay: Bool
         let isCanceled: Bool
         let response: String
+
+        private enum CodingKeys: String, CodingKey {
+            case meetingId, subject, start, end, location, isAllDay, isCanceled, response
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            meetingId = try c.decode(String.self, forKey: .meetingId)
+            subject = try c.decode(String.self, forKey: .subject)
+            start = try c.decode(String.self, forKey: .start)
+            end = try c.decode(String.self, forKey: .end)
+            location = try c.decodeIfPresent(String.self, forKey: .location) ?? ""
+            isAllDay = try c.decode(Bool.self, forKey: .isAllDay)
+            isCanceled = try c.decode(Bool.self, forKey: .isCanceled)
+            response = try c.decode(String.self, forKey: .response)
+        }
     }
 
     /// Returns every event in `output`, or throws; never returns a partial list.
@@ -47,9 +63,9 @@ public enum CalendarViewParser {
         }
     }
 
-    /// Finds the JSON array text. A line that is itself an array wins, which skips the
-    /// boundary markers and trailing notices; otherwise the span from the first `[{` or
-    /// `[]` to the last `}]` or `]` is used.
+    /// Finds the line that is itself a JSON array (starts with `[{` or `[]` and ends with `]`).
+    /// Boundary markers, notices, and error text are skipped; an array embedded mid-line
+    /// is never accepted.
     private static func extractArray(_ output: String) -> String? {
         for line in output.split(whereSeparator: \.isNewline) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -57,11 +73,6 @@ public enum CalendarViewParser {
                 return trimmed
             }
         }
-        let starts = ["[{", "[]"].compactMap { output.range(of: $0)?.lowerBound }
-        guard let start = starts.min(),
-            let end = output.range(of: "]", options: .backwards)?.upperBound,
-            start < end
-        else { return nil }
-        return String(output[start..<end])
+        return nil
     }
 }
