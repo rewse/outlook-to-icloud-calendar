@@ -28,6 +28,17 @@ private func tempDirectory() -> URL {
     #expect(log.directory == directory)
 }
 
+@Test func lineBreaksInMessagesAreEscaped() throws {
+    let directory = tempDirectory()
+    let log = SyncLog(directory: directory, now: { localNoon(2026, 10, 30) })
+    log.write("add \"Line one\nLine two\r\nLine three\rend\"")
+    let text = try String(
+        contentsOf: directory.appendingPathComponent("2026-10-30.log"), encoding: .utf8)
+    #expect(text.utf8.filter { $0 == UInt8(ascii: "\n") }.count == 1)
+    #expect(!text.utf8.contains(UInt8(ascii: "\r")))
+    #expect(text.hasSuffix(#" add "Line one\nLine two\r\nLine three\rend""# + "\n"))
+}
+
 @Test func purgeRemovesOlderThan14Days() throws {
     let directory = tempDirectory()
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

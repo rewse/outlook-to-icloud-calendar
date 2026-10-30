@@ -15,8 +15,9 @@ public final class SyncLog: @unchecked Sendable {
         self.now = now
     }
 
-    /// Appends "<ISO 8601 local time> <message>" to today's file. Failures are
-    /// ignored so that logging never interrupts a sync.
+    /// Appends "<ISO 8601 local time> <message>" to today's file, with line
+    /// breaks in `message` escaped as `\n` and `\r` so that each entry stays on
+    /// one line. Failures are ignored so that logging never interrupts a sync.
     public func write(_ message: String) {
         lock.lock()
         defer { lock.unlock() }
@@ -24,7 +25,9 @@ public final class SyncLog: @unchecked Sendable {
         let calendar = Self.localCalendar()
         let timestamp = ISO8601DateFormatter.string(
             from: date, timeZone: calendar.timeZone, formatOptions: .withInternetDateTime)
-        let data = Data("\(timestamp) \(message)\n".utf8)
+        let line = message.replacingOccurrences(of: "\r", with: "\\r")
+            .replacingOccurrences(of: "\n", with: "\\n")
+        let data = Data("\(timestamp) \(line)\n".utf8)
         let day = Self.dayFormatter(calendar).string(from: date)
         let file = directory.appendingPathComponent("\(day).log")
         let manager = FileManager.default

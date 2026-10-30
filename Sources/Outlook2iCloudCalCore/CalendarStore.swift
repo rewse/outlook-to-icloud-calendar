@@ -43,4 +43,6 @@ public protocol CalendarStore: Sendable {
     func update(storeID: String, fields: EventFields) async throws
     func delete(storeID: String) async throws
     func commit() async throws
+    /// Discards all staged changes that have not been committed.
+    func rollback() async
 }

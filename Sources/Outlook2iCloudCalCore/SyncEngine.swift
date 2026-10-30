@@ -94,7 +94,9 @@ public struct SyncEngine: Sendable {
             try await store.commit()
             return finish(outcome)
         } catch {
-            log.write("store error: \(error)")
+            // Discard staged writes so a later commit cannot persist a partial run.
+            await store.rollback()
+            log.write("store error: \(error); staged changes rolled back")
             return finish(.failed(String(describing: error)))
         }
     }

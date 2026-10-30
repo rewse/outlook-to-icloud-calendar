@@ -201,10 +201,60 @@ private func massDeletionSetup() -> (FakeSource, FakeStore) {
 }
 
 @Test func storeErrorBecomesFailed() async {
-    let store = FakeStore(addError: FakeError(description: "calendar is read-only"))
+    let store = FakeStore(
+        failing: .add(), error: FakeError(description: "calendar is read-only"))
     let outcome = await engine(source(fillers), store).run(.normal, now: now)
     #expect(outcome == .failed("calendar is read-only"))
+    #expect(await store.rollbackCount == 1)
     #expect(await store.commitCount == 0)
+}
+
+/// A normal run that adds "new", updates fill-6, and deletes "gone".
+private func normalRunStore(failing failure: FakeStoreFailure) -> (FakeSource, FakeStore) {
+    var buckets = fillers
+    buckets[1].append(extra("new"))
+    let store = FakeStore(
+        (0..<6).map { stored(filler($0)) } + [
+            stored(filler(6), title: "Old"), stored(extra("gone", bucket: 2)),
+        ], failing: failure)
+    return (source(buckets), store)
+}
+
+@Test(arguments: [FakeStoreFailure.update(), .delete(), .commit])
+func laterStoreErrorRollsBackEarlierWrites(_ failure: FakeStoreFailure) async {
+    let (source, store) = normalRunStore(failing: failure)
+    let before = await store.events
+    let outcome = await engine(source, store).run(.normal, now: now)
+    #expect(outcome == .failed("store failure"))
+    #expect(await store.added.count == 1)
+    #expect(await store.rollbackCount == 1)
+    #expect(await store.commitCount == 0)
+    #expect(await store.events == before)
+}
+
+@Test func resetErrorAfterSomeDeletesRollsBack() async {
+    let store = FakeStore(
+        [stored(filler(0)), stored(extra("old")), stored(extra("personal"), managed: false)],
+        failing: .delete(after: 2))
+    let before = await store.events
+    let outcome = await engine(source(fillers), store).run(.reset, now: now)
+    #expect(outcome == .failed("store failure"))
+    #expect(await store.deleted.count == 2)
+    #expect(await store.added.isEmpty)
+    #expect(await store.rollbackCount == 1)
+    #expect(await store.commitCount == 0)
+    #expect(await store.events == before)
+}
+
+@Test func resetWithEmptyBucketWritesNothing() async {
+    var buckets = fillers
+    buckets[4] = []
+    let store = FakeStore([stored(filler(0)), stored(extra("old"))])
+    let outcome = await engine(source(buckets), store).run(.reset, now: now)
+    #expect(outcome == .incompleteFetch(bucketCounts: [1, 1, 1, 1, 0, 1, 1]))
+    #expect(await store.writeCount == 0)
+    #expect(await store.commitCount == 0)
+    #expect(await store.events.count == 2)
 }
 
 @Test func logDescribesTheRun() async throws {
