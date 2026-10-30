@@ -24,8 +24,14 @@ cp Resources/Info.plist "$APP/Contents/Info.plist"
 
 ICON_TMP="$(mktemp -d build/icon.XXXXXX)"
 trap 'rm -rf "$ICON_TMP"' EXIT
-swift scripts/make-icon.swift "$ICON_TMP/AppIcon.iconset"
-iconutil -c icns "$ICON_TMP/AppIcon.iconset" -o "$APP/Contents/Resources/AppIcon.icns"
+swift scripts/make-icon.swift "$ICON_TMP/AppIcon.icon"
+# actool emits Assets.car (the Icon Composer icon used by macOS 26 and later),
+# AppIcon.icns (the fallback for earlier macOS), and the matching Info.plist keys.
+xcrun actool "$ICON_TMP/AppIcon.icon" --compile "$APP/Contents/Resources" \
+    --app-icon AppIcon --platform macosx --minimum-deployment-target 15.0 \
+    --output-partial-info-plist "$ICON_TMP/AppIcon-Info.plist" \
+    --output-format human-readable-text --errors --warnings >/dev/null
+/usr/libexec/PlistBuddy -c "Merge $ICON_TMP/AppIcon-Info.plist" "$APP/Contents/Info.plist"
 
 codesign --force --options runtime \
     --entitlements Resources/Outlook2iCloudCal.entitlements \
