@@ -35,6 +35,11 @@ final class EventKitStore: CalendarStore, @unchecked Sendable {
 
     func events(in range: DateInterval) async throws -> [StoredEvent] {
         try lock.withLock {
+            // Every sync reads events before it stages anything, so resetting here drops only
+            // stale cached state (events and calendars changed on other devices, or a Business
+            // calendar that was deleted and recreated) and never a pending write.
+            eventStore.reset()
+            cachedCalendar = nil
             let calendar = try businessCalendar()
             let predicate = eventStore.predicateForEvents(
                 withStart: range.start, end: range.end, calendars: [calendar])
