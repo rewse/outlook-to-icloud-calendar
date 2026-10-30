@@ -105,8 +105,6 @@ Outlook の `meetingId` は定期予定でも回ごとに異なるので、こ�
 
 同じ異常が続く間に毎回通知すると 1 時間ごとに鳴り続けるので、正常から異常へ、または異常の種類が変わったときだけ通知する。削除の保留は、保留の件数が増えたときにも通知する（設計上の判断）。通知の許可は初回起動時に求める。
 
-`mcporter` の出力は、JSON の前後にデータ境界を示すマーカーが付いて返ってくることがあるので、JSON 配列だけを取り出して解析する。
-
 ### 初期化して再取得
 
 メニューから手動で実行する。確認ダイアログを 1 回出したあと、範囲内の `Business` の予定を、アプリが管理しているかどうかに関係なく全部消してから Outlook の予定を取り直す。範囲より古い予定は消さない。取得に成功し、ゲート 1 を通過してから入れ替える順番にする。証明書切れのまま押しても、`Business` が空になることはない。大量削除のゲート 2 は通さない。
@@ -168,7 +166,7 @@ Swift のネイティブアプリにして、iCloud への書き込みに EventK
 
 ### mcporter の呼び出し
 
-GUI アプリはログインシェルの PATH を引き継がないので、`mcporter` は `/opt/homebrew/bin/mcporter` のように絶対パスで呼ぶか、PATH を明示して呼ぶ。`mcporter` の設定は `~/.mcporter/mcporter.json` にあり、サーバー名は `aws-outlook-mcp`、使うツールは `calendar_view`（引数 `view`、`start_date`、`end_date`、日付は `MM-DD-YYYY`）である。範囲の扱いは「取得範囲」の節に書いた。
+GUI アプリはログインシェルの PATH を引き継がないので、`mcporter` は `/opt/homebrew/bin/mcporter` のように絶対パスで呼ぶか、PATH を明示して呼ぶ。`mcporter` の設定は `~/.mcporter/mcporter.json` にあり、サーバー名は `aws-outlook-mcp`、使うツールは `calendar_view`（引数 `view`、`start_date`、`end_date`、日付は `MM-DD-YYYY`）である。範囲の扱いは「取得範囲」の節に書いた。`mcporter` の出力は、JSON の前後にデータ境界を示すマーカーが付いて返ってくることがあるので、JSON 配列だけを取り出して解析する。
 
 ### リポジトリの設定
 
