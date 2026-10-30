@@ -12,7 +12,7 @@ import Testing
         ),
         (.failed("x"), .alert, "同期に失敗しました。ログを確認してください"),
         (
-            .heldDeletions(SyncCounts(held: 42), managed: 180), .paused,
+            .heldDeletions(SyncCounts(held: 42), managed: 180, storeIDs: []), .paused,
             "削除 42 件を保留中（管理中 180 件の 23%）"
         ),
         (.success(SyncCounts(added: 1)), .none, nil),
@@ -28,9 +28,11 @@ import Testing
 
 @Test func heldBannerRoundsAndGuardsZeroManaged() {
     let date = tokyo("2026-10-30T09:00:00")
-    let half = AppStatus().applying(.heldDeletions(SyncCounts(held: 1), managed: 8), at: date)
+    let half = AppStatus().applying(
+        .heldDeletions(SyncCounts(held: 1), managed: 8, storeIDs: []), at: date)
     #expect(half.banner == "削除 1 件を保留中（管理中 8 件の 13%）")
-    let zero = AppStatus().applying(.heldDeletions(SyncCounts(held: 5), managed: 0), at: date)
+    let zero = AppStatus().applying(
+        .heldDeletions(SyncCounts(held: 5), managed: 0, storeIDs: []), at: date)
     #expect(zero.banner == "削除 5 件を保留中（管理中 0 件の 100%）")
 }
 
@@ -40,10 +42,10 @@ import Testing
     let counts = SyncCounts(added: 2, updated: 1, deleted: 0, held: 6)
     let status = AppStatus()
         .applying(.success(SyncCounts(added: 3)), at: first)
-        .applying(.heldDeletions(counts, managed: 50), at: second)
+        .applying(.heldDeletions(counts, managed: 50, storeIDs: []), at: second)
     #expect(status.lastSuccessAt == second)
     #expect(status.lastCounts == counts)
-    #expect(status.lastOutcome == .heldDeletions(counts, managed: 50))
+    #expect(status.lastOutcome == .heldDeletions(counts, managed: 50, storeIDs: []))
 }
 
 @Test func certificateExpiredKeepsLastSuccess() {

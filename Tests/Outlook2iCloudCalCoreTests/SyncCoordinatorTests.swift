@@ -46,7 +46,7 @@ private actor BlockingSource: OutlookSource {
     let first = Task { await coordinator.run(.normal, now: now) }
     await source.waitUntilEntered()
     #expect(await coordinator.run(.normal, now: now) == nil)
-    #expect(await coordinator.run(.approveDeletions, now: now) == nil)
+    #expect(await coordinator.run(.approveDeletions([]), now: now) == nil)
 
     await source.open()
     let incomplete = SyncOutcome.incompleteFetch(bucketCounts: [0, 0, 0, 0, 0, 0, 0])

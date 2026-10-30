@@ -54,9 +54,10 @@ final class AppModel: ObservableObject {
         Task { await start() }
     }
 
-    /// The number of deletions held by the last sync, or nil when none are held.
-    var heldCount: Int? {
-        if case .heldDeletions(let counts, _) = status.lastOutcome { return counts.held }
+    /// The store IDs of the deletions held by the last sync, or nil when none are held.
+    /// Approving passes exactly these IDs, so a later, larger plan is not approved with them.
+    var heldStoreIDs: [String]? {
+        if case .heldDeletions(_, _, let storeIDs) = status.lastOutcome { return storeIDs }
         return nil
     }
 

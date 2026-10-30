@@ -4,7 +4,7 @@ import Testing
 @testable import Outlook2iCloudCalCore
 
 private func held(_ count: Int) -> SyncOutcome {
-    .heldDeletions(SyncCounts(held: count), managed: 50)
+    .heldDeletions(SyncCounts(held: count), managed: 50, storeIDs: [])
 }
 
 private let incomplete = SyncOutcome.incompleteFetch(bucketCounts: [1, 0, 1, 1, 1, 1, 1])

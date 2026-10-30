@@ -1,12 +1,25 @@
 import Foundation
 
-public enum SyncMode: Sendable {
+public enum SyncMode: Equatable, Sendable {
     /// Apply the plan, holding deletions that trip the deletion gate.
     case normal
-    /// Apply the plan including any held deletions.
-    case approveDeletions
+    /// Apply the plan, deleting the planned deletions whose store IDs the user
+    /// approved without the deletion gate. Any other planned deletions still
+    /// go through the gate.
+    case approveDeletions(Set<String>)
     /// Delete every event in the window and add all eligible events again.
     case reset
+}
+
+extension SyncMode: CustomStringConvertible {
+    /// A log label that shows how many deletions were approved, not their IDs.
+    public var description: String {
+        switch self {
+        case .normal: "normal"
+        case .approveDeletions(let storeIDs): "approveDeletions(\(storeIDs.count))"
+        case .reset: "reset"
+        }
+    }
 }
 
 public struct SyncCounts: Equatable, Codable, Sendable {
@@ -22,8 +35,9 @@ public struct SyncCounts: Equatable, Codable, Sendable {
 
 public enum SyncOutcome: Equatable, Sendable {
     case success(SyncCounts)
-    /// Adds and updates were applied; `counts.held` deletions were not.
-    case heldDeletions(SyncCounts, managed: Int)
+    /// Adds, updates, and approved deletions were applied; the `counts.held`
+    /// deletions listed in `storeIDs` were not.
+    case heldDeletions(SyncCounts, managed: Int, storeIDs: [String])
     case certificateExpired
     case incompleteFetch(bucketCounts: [Int])
     case failed(String)
@@ -136,18 +150,30 @@ public struct SyncEngine: Sendable {
             counts.updated += 1
         }
 
-        let gateSummary = "deletes=\(plan.deletes.count) managed=\(plan.managedCount)"
-        if plan.exceedsDeletionGate && mode == .normal {
+        var pending = plan.deletes
+        if case .approveDeletions(let approvedIDs) = mode {
+            let approved = pending.filter { approvedIDs.contains($0.storeID) }
+            pending.removeAll { approvedIDs.contains($0.storeID) }
+            log.write("gate2 approved deletes=\(approved.count)")
+            for item in approved {
+                log.write(format.event("delete", item.fields))
+                try await store.delete(storeID: item.storeID)
+                counts.deleted += 1
+            }
+        }
+
+        let gateSummary = "deletes=\(pending.count) managed=\(plan.managedCount)"
+        if SyncPlan.exceedsDeletionGate(deletes: pending.count, managed: plan.managedCount) {
             log.write("gate2 hold \(gateSummary)")
-            for item in plan.deletes {
+            for item in pending {
                 log.write(format.event("held", item.fields))
             }
-            counts.held = plan.deletes.count
-            return .heldDeletions(counts, managed: plan.managedCount)
+            counts.held = pending.count
+            return .heldDeletions(
+                counts, managed: plan.managedCount, storeIDs: pending.map(\.storeID))
         }
-        let decision = plan.exceedsDeletionGate ? "approved" : "pass"
-        log.write("gate2 \(decision) \(gateSummary)")
-        for item in plan.deletes {
+        log.write("gate2 pass \(gateSummary)")
+        for item in pending {
             log.write(format.event("delete", item.fields))
             try await store.delete(storeID: item.storeID)
             counts.deleted += 1
@@ -160,7 +186,7 @@ public struct SyncEngine: Sendable {
         switch outcome {
         case .success(let counts):
             log.write("sync success \(format.counts(counts))")
-        case .heldDeletions(let counts, let managed):
+        case .heldDeletions(let counts, let managed, _):
             log.write("sync held-deletions \(format.counts(counts)) managed=\(managed)")
         case .certificateExpired:
             log.write("sync certificate-expired")

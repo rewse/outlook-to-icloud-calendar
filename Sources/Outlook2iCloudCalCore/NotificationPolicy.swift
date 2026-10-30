@@ -23,8 +23,8 @@ public enum NotificationPolicy {
         switch current {
         case .success, .certificateExpired:
             return nil
-        case .heldDeletions(let counts, _):
-            if case .heldDeletions(let previousCounts, _) = previous,
+        case .heldDeletions(let counts, _, _):
+            if case .heldDeletions(let previousCounts, _, _) = previous,
                 counts.held <= previousCounts.held
             {
                 return nil

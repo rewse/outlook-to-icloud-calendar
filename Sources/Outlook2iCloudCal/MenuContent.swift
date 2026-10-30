@@ -9,7 +9,7 @@ struct MenuContent: View {
     var body: some View {
         if let banner = model.status.banner {
             Text(banner)
-            if let held = model.heldCount {
+            if let held = model.heldStoreIDs {
                 Button("削除を実行…") { confirmDeletions(held) }
             }
             Divider()
@@ -74,9 +74,9 @@ struct MenuContent: View {
         }
     }
 
-    private func confirmDeletions(_ held: Int) {
-        if confirm(title: "削除を実行", message: "保留中の削除 \(held) 件を実行します。") {
-            model.sync(.approveDeletions)
+    private func confirmDeletions(_ storeIDs: [String]) {
+        if confirm(title: "削除を実行", message: "保留中の削除 \(storeIDs.count) 件を実行します。") {
+            model.sync(.approveDeletions(Set(storeIDs)))
         }
     }
 

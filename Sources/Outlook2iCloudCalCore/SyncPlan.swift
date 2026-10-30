@@ -72,6 +72,11 @@ public struct SyncPlan: Equatable, Sendable {
     /// Whether the deletions are too many to apply without confirmation:
     /// at least 5 and at least 10% of the managed events.
     public var exceedsDeletionGate: Bool {
-        deletes.count >= 5 && deletes.count * 10 >= managedCount
+        Self.exceedsDeletionGate(deletes: deletes.count, managed: managedCount)
+    }
+
+    /// Whether `deletes` deletions out of `managed` managed events trip the gate.
+    public static func exceedsDeletionGate(deletes: Int, managed: Int) -> Bool {
+        deletes >= 5 && deletes * 10 >= managed
     }
 }

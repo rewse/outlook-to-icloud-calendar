@@ -39,7 +39,7 @@ public struct AppStatus: Equatable, Sendable {
             return "証明書が切れています。mwinit してください"
         case .incompleteFetch:
             return "取得が途中で切れたため同期を見送りました"
-        case .heldDeletions(let counts, let managed):
+        case .heldDeletions(let counts, let managed, _):
             let percent =
                 managed == 0
                 ? 100 : Int((Double(counts.held) / Double(managed) * 100).rounded())
@@ -57,7 +57,7 @@ public struct AppStatus: Equatable, Sendable {
         var next = self
         next.lastOutcome = outcome
         switch outcome {
-        case .success(let counts), .heldDeletions(let counts, _):
+        case .success(let counts), .heldDeletions(let counts, _, _):
             next.lastSuccessAt = date
             next.lastCounts = counts
         case .certificateExpired, .incompleteFetch, .failed:

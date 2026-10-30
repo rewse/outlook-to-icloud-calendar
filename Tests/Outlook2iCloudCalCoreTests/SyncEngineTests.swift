@@ -150,7 +150,11 @@ private func massDeletionSetup() -> (FakeSource, FakeStore) {
     let (source, store) = massDeletionSetup()
     let (log, directory) = makeLog()
     let outcome = await engine(source, store, log: log).run(.normal, now: now)
-    #expect(outcome == .heldDeletions(SyncCounts(added: 1, updated: 1, held: 6), managed: 20))
+    #expect(
+        outcome
+            == .heldDeletions(
+                SyncCounts(added: 1, updated: 1, held: 6), managed: 20,
+                storeIDs: (7..<13).map { "s-x-\($0)" }))
     #expect(await store.added.map(\.meetingId) == ["new"])
     #expect(await store.updated.map(\.storeID) == ["s-fill-6"])
     #expect(await store.deleted.isEmpty)
@@ -162,10 +166,45 @@ private func massDeletionSetup() -> (FakeSource, FakeStore) {
 
 @Test func approveDeletionsBypassesGate2() async {
     let (source, store) = massDeletionSetup()
-    let outcome = await engine(source, store).run(.approveDeletions, now: now)
+    let approved = Set((7..<13).map { "s-x-\($0)" })
+    let outcome = await engine(source, store).run(.approveDeletions(approved), now: now)
     #expect(outcome == .success(SyncCounts(added: 1, updated: 1, deleted: 6)))
-    #expect(await store.deleted.count == 6)
+    #expect(Set(await store.deleted) == approved)
     #expect(await store.commitCount == 1)
+}
+
+@Test func approvalDeletesOnlyApprovedEventsAndHoldsTheRest() async throws {
+    // 60 managed extras vanish from Outlook, but only 6 of them were approved.
+    let extras = (0..<60).map { extra("v-\($0)", bucket: $0 % 7, hour: 8 + $0 / 7) }
+    let store = FakeStore((0..<7).map { stored(filler($0)) } + extras.map { stored($0) })
+    let approved = Set((0..<6).map { "s-v-\($0)" })
+    let (log, directory) = makeLog()
+    let outcome = await engine(source(fillers), store, log: log)
+        .run(.approveDeletions(approved), now: now)
+    guard case .heldDeletions(let counts, let managed, let storeIDs) = outcome else {
+        Issue.record("expected .heldDeletions, got \(outcome)")
+        return
+    }
+    #expect(counts == SyncCounts(deleted: 6, held: 54))
+    #expect(managed == 67)
+    #expect(Set(storeIDs) == Set((6..<60).map { "s-v-\($0)" }))
+    #expect(Set(await store.deleted) == approved)
+    #expect(await store.commitCount == 1)
+    let text = try logText(directory)
+    #expect(text.contains("sync start mode=approveDeletions(6)"))
+    #expect(text.contains("gate2 approved deletes=6"))
+    #expect(text.contains("gate2 hold deletes=54 managed=67"))
+}
+
+@Test func approvalIgnoresEventsNoLongerPlannedForDeletion() async {
+    var buckets = fillers
+    buckets[1].append(extra("back"))
+    let store = FakeStore(
+        (0..<7).map { stored(filler($0)) } + [stored(extra("back")), stored(extra("gone"))])
+    let outcome = await engine(source(buckets), store)
+        .run(.approveDeletions(["s-back", "s-gone"]), now: now)
+    #expect(outcome == .success(SyncCounts(deleted: 1)))
+    #expect(await store.deleted == ["s-gone"])
 }
 
 @Test func resetReplacesEverythingInRange() async {
