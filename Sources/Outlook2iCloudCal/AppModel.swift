@@ -66,13 +66,17 @@ final class AppModel: ObservableObject {
         SyncWindow(now: Date(), calendar: .current).range
     }
 
-    /// Starts a sync unless one is already running.
-    func sync(_ mode: SyncMode) {
-        guard !isSyncing else { return }
+    /// Starts a sync unless one is already running. A dropped request is logged when the
+    /// user asked for it, since the menu gives no other sign that it did not run.
+    func sync(_ mode: SyncMode, userRequested: Bool = false) {
+        guard !isSyncing else {
+            if userRequested { logDropped(mode) }
+            return
+        }
         isSyncing = true
         Task {
             defer { isSyncing = false }
-            await performSync(mode)
+            await performSync(mode, userRequested: userRequested)
         }
     }
 
@@ -94,7 +98,11 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func performSync(_ mode: SyncMode) async {
+    private func logDropped(_ mode: SyncMode) {
+        log.write("user-requested sync mode=\(mode) dropped: another sync is running")
+    }
+
+    private func performSync(_ mode: SyncMode, userRequested: Bool) async {
         let now = Date()
         lastAttemptAt = now
         if !(lastPurgeAt.map { Calendar.current.isDate($0, inSameDayAs: now) } ?? false) {
@@ -103,7 +111,10 @@ final class AppModel: ObservableObject {
         let outcome: SyncOutcome
         do {
             try await store.requestAccess()
-            guard let result = await coordinator.run(mode, now: now) else { return }
+            guard let result = await coordinator.run(mode, now: now) else {
+                if userRequested { logDropped(mode) }
+                return
+            }
             outcome = result
         } catch {
             log.write("sync failed: calendar access denied (\(error))")

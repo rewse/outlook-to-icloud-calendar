@@ -11,13 +11,16 @@ struct MenuContent: View {
             Text(banner)
             if let held = model.heldStoreIDs {
                 Button("削除を実行…") { confirmDeletions(held) }
+                    .disabled(model.isSyncing)
             }
             Divider()
         }
         Text("最終同期：\(lastSyncText)")
         Text("直前の同期：\(countsText)")
         Divider()
-        Button(model.isSyncing ? "同期中…" : "今すぐ同期") { model.sync(.normal) }
+        Button(model.isSyncing ? "同期中…" : "今すぐ同期") {
+            model.sync(.normal, userRequested: true)
+        }
             .disabled(model.isSyncing)
         Picker("自動同期の間隔", selection: $model.intervalMinutes) {
             ForEach(AppModel.intervalChoices, id: \.self) { minutes in
@@ -70,13 +73,13 @@ struct MenuContent: View {
             title: "初期化して再取得",
             message: "範囲内（\(span)）の Business の予定をすべて削除して、Outlook から取り直します。")
         {
-            model.sync(.reset)
+            model.sync(.reset, userRequested: true)
         }
     }
 
     private func confirmDeletions(_ storeIDs: [String]) {
         if confirm(title: "削除を実行", message: "保留中の削除 \(storeIDs.count) 件を実行します。") {
-            model.sync(.approveDeletions(Set(storeIDs)))
+            model.sync(.approveDeletions(Set(storeIDs)), userRequested: true)
         }
     }
 
