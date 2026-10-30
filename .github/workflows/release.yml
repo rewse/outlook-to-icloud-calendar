@@ -27,6 +27,11 @@ jobs:
         with:
           args: --latest --strip header
 
+      - name: Check the tag against the app version
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: scripts/check-tag-version.sh "$TAG_NAME"
+
       - name: Create GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -37,3 +42,54 @@ jobs:
             --title "$TAG_NAME" \
             --notes "$RELEASE_NOTES" \
             --verify-tag
+
+  dmg:
+    name: DMG
+    needs: release
+    runs-on: macos-26
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check the tag against the app version
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: scripts/check-tag-version.sh "$TAG_NAME"
+
+      - name: Import the signing identity
+        env:
+          P12_BASE64: ${{ secrets.SIGNING_CERTIFICATE_P12 }}
+          P12_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
+        run: |
+          umask 077
+          printf '%s' "$P12_BASE64" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+          scripts/ci-import-signing-identity.sh "$RUNNER_TEMP/signing.p12"
+          rm -f "$RUNNER_TEMP/signing.p12"
+
+      - name: Build the DMG
+        env:
+          DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+        run: make dmg
+
+      - name: Attach the DMG to the release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          version="${TAG_NAME#v}"
+          gh release upload "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --clobber \
+            "build/Outlook2iCloudCal-$version.dmg" \
+            "build/Outlook2iCloudCal-$version.dmg.sha256"
+
+      - name: Remove the signing identity
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/signing.p12"
+          if [ -n "${SIGNING_KEYCHAIN:-}" ]; then
+            security delete-keychain "$SIGNING_KEYCHAIN"
+          fi
