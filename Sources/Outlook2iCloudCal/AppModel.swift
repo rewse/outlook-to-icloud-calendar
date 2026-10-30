@@ -158,11 +158,28 @@ final class AppModel: ObservableObject {
 
     private func registerLoginItem() {
         let service = SMAppService.mainApp
-        guard service.status == .notRegistered else { return }
-        do {
-            try service.register()
-        } catch {
-            log.write("login item registration failed: \(error)")
+        log.write("login item status: \(Self.statusName(service.status))")
+        if service.status != .enabled && service.status != .requiresApproval {
+            do {
+                try service.register()
+                log.write("login item status after register: \(Self.statusName(service.status))")
+            } catch {
+                log.write("login item registration failed: \(error)")
+            }
+        }
+        if service.status == .requiresApproval {
+            log.write(
+                "login item requires approval: allow it in System Settings > General > Login Items")
+        }
+    }
+
+    private static func statusName(_ status: SMAppService.Status) -> String {
+        switch status {
+        case .notRegistered: "notRegistered"
+        case .enabled: "enabled"
+        case .requiresApproval: "requiresApproval"
+        case .notFound: "notFound"
+        @unknown default: "unknown"
         }
     }
 }
