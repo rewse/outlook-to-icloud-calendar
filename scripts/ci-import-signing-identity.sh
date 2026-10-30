@@ -28,6 +28,9 @@ CERT_PEM="$RUNNER_TEMP/signing-cert.pem"
 trap 'rm -f "$CERT_PEM"' EXIT
 
 security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+# Export the path right away, so the cleanup step deletes the keychain even
+# when a later step fails with the key already imported.
+echo "SIGNING_KEYCHAIN=$KEYCHAIN" >> "${GITHUB_ENV:-/dev/null}"
 security set-keychain-settings -lut 21600 "$KEYCHAIN"
 security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
 security import "$P12" -k "$KEYCHAIN" -f pkcs12 -P "$P12_PASSWORD" -T /usr/bin/codesign
@@ -53,5 +56,4 @@ if ! LC_ALL=C security find-identity -v -p codesigning "$KEYCHAIN" | grep -q "$C
     echo "error: '$CERT_NAME' is not a valid code-signing identity after import" >&2
     exit 1
 fi
-echo "SIGNING_KEYCHAIN=$KEYCHAIN" >> "${GITHUB_ENV:-/dev/null}"
 echo "Imported '$CERT_NAME' into $KEYCHAIN"

@@ -64,6 +64,23 @@ SIG="$ROOT/scripts/check-signature.sh"
 expect 1 "designated requirement" -- "$SIG" "$APP"
 expect 1 "not found" -- "$SIG" "$WORK/Missing.app"
 
+# A failed import must still tell the cleanup step which keychain to delete.
+# `security` and `sudo` are stubs here, so no real keychain is touched.
+STUBS="$WORK/stubs"
+mkdir -p "$STUBS" "$WORK/runner_temp"
+# shellcheck disable=SC2016 # the stubs' $1 and $@ must expand when they run
+printf '#!/bin/bash\n[ "$1" = add-trusted-cert ] && exit 1\nexit 0\n' > "$STUBS/security"
+# shellcheck disable=SC2016 # same as above
+printf '#!/bin/bash\nexec "$@"\n' > "$STUBS/sudo"
+chmod +x "$STUBS/security" "$STUBS/sudo"
+: > "$WORK/github_env"
+if PATH="$STUBS:$PATH" CI=true RUNNER_TEMP="$WORK/runner_temp" GITHUB_ENV="$WORK/github_env" \
+    P12_PASSWORD=x "$ROOT/scripts/ci-import-signing-identity.sh" /dev/null >/dev/null 2>&1; then
+    fail "ci-import-signing-identity.sh succeeded although trusting the certificate failed"
+fi
+grep -qx "SIGNING_KEYCHAIN=$WORK/runner_temp/signing.keychain-db" "$WORK/github_env" \
+    || fail "a failed import did not export SIGNING_KEYCHAIN for cleanup"
+
 if [ "$FAILURES" -gt 0 ]; then
     echo "$FAILURES failure(s)" >&2
     exit 1
