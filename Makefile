@@ -2,13 +2,16 @@ export DEVELOPER_DIR := /Applications/Xcode.app/Contents/Developer
 
 APP := build/Outlook2iCloudCal.app
 
-.PHONY: test app install cert
+.PHONY: test app dmg install cert
 
 test:
 	swift test $(if $(FILTER),--filter '$(FILTER)')
 
 app:
 	scripts/build-app.sh
+
+dmg: app
+	scripts/build-dmg.sh
 
 install: app
 	mkdir -p $(HOME)/Applications
