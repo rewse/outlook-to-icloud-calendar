@@ -17,6 +17,7 @@ let package = Package(
         .testTarget(
             name: "Outlook2iCloudCalCoreTests",
             dependencies: ["Outlook2iCloudCalCore"],
+            resources: [.copy("Fixtures")],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
     ]
