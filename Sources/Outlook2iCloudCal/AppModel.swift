@@ -118,7 +118,7 @@ final class AppModel: ObservableObject {
             outcome = result
         } catch {
             log.write("sync failed: calendar access denied (\(error))")
-            outcome = .failed("カレンダーへのアクセスが許可されていません")
+            outcome = .failed("calendar access not granted")
         }
         record(outcome, at: Date())
     }

@@ -10,44 +10,46 @@ struct MenuContent: View {
         if let banner = model.status.banner {
             Text(banner)
             if let held = model.heldStoreIDs {
-                Button("削除を実行…") { confirmDeletions(held) }
+                Button(String(localized: "Delete Held Events…")) { confirmDeletions(held) }
                     .disabled(model.isSyncing)
             }
             Divider()
         }
-        Text("最終同期：\(lastSyncText)")
-        Text("直前の同期：\(countsText)")
+        Text(String(localized: "Last sync: \(lastSyncText)"))
+        Text(String(localized: "Last result: \(countsText)"))
         Divider()
-        Button(model.isSyncing ? "同期中…" : "今すぐ同期") {
+        Button(model.isSyncing ? String(localized: "Syncing…") : String(localized: "Sync Now")) {
             model.sync(.normal, userRequested: true)
         }
             .disabled(model.isSyncing)
-        Picker("自動同期の間隔", selection: $model.intervalMinutes) {
+        Picker(String(localized: "Sync Interval"), selection: $model.intervalMinutes) {
             ForEach(AppModel.intervalChoices, id: \.self) { minutes in
                 Text(Self.intervalLabel(minutes)).tag(minutes)
             }
         }
-        Button("ログを Finder で表示") { showLog() }
-        Button("初期化して再取得…") { confirmReset() }
+        Button(String(localized: "Show Log in Finder")) { showLog() }
+        Button(String(localized: "Reset and Refetch…")) { confirmReset() }
             .disabled(model.isSyncing)
         Divider()
-        Button("終了") { NSApp.terminate(nil) }
+        Button(String(localized: "Quit")) { NSApp.terminate(nil) }
     }
 
     private var lastSyncText: String {
-        guard let date = model.status.lastSuccessAt else { return "なし" }
+        guard let date = model.status.lastSuccessAt else { return String(localized: "None") }
         let format = Calendar.current.isDateInToday(date) ? "HH:mm" : "M/d HH:mm"
         return Self.formatter(format).string(from: date)
     }
 
     private var countsText: String {
-        guard let counts = model.status.lastCounts else { return "なし" }
-        let text = "追加 \(counts.added) / 更新 \(counts.updated) / 削除 \(counts.deleted)"
-        return counts.held > 0 ? text + "（保留 \(counts.held)）" : text
+        guard let counts = model.status.lastCounts else { return String(localized: "None") }
+        let text = String(
+            localized: "\(counts.added) added / \(counts.updated) updated / \(counts.deleted) deleted")
+        return counts.held > 0 ? text + String(localized: " (\(counts.held) held)") : text
     }
 
     private static func intervalLabel(_ minutes: Int) -> String {
-        minutes < 60 ? "\(minutes) 分" : "\(minutes / 60) 時間"
+        minutes < 60
+            ? String(localized: "\(minutes) min") : String(localized: "\(minutes / 60) hours")
     }
 
     private static func formatter(_ format: String) -> DateFormatter {
@@ -68,17 +70,24 @@ struct MenuContent: View {
         let format = Self.formatter("M/d")
         // The window end is exclusive, so the last covered day is the day before.
         let lastDay = window.end.addingTimeInterval(-1)
-        let span = "\(format.string(from: window.start))〜\(format.string(from: lastDay))"
+        let first = format.string(from: window.start)
+        let last = format.string(from: lastDay)
         if confirm(
-            title: "初期化して再取得",
-            message: "範囲内（\(span)）の Business の予定をすべて削除して、Outlook から取り直します。")
+            title: String(localized: "Reset and Refetch"),
+            message: String(
+                localized:
+                    "Deletes every Business event from \(first) to \(last) and fetches them again from Outlook."
+            ))
         {
             model.sync(.reset, userRequested: true)
         }
     }
 
     private func confirmDeletions(_ storeIDs: [String]) {
-        if confirm(title: "削除を実行", message: "保留中の削除 \(storeIDs.count) 件を実行します。") {
+        if confirm(
+            title: String(localized: "Delete Held Events"),
+            message: String(localized: "Deletes \(storeIDs.count) held events."))
+        {
             model.sync(.approveDeletions(Set(storeIDs)), userRequested: true)
         }
     }
@@ -88,8 +97,8 @@ struct MenuContent: View {
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = message
-        alert.addButton(withTitle: "実行")
-        alert.addButton(withTitle: "キャンセル")
+        alert.addButton(withTitle: String(localized: "Run"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         return alert.runModal() == .alertFirstButtonReturn
     }
 }

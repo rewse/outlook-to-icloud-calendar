@@ -32,20 +32,22 @@ public struct AppStatus: Equatable, Sendable {
         }
     }
 
-    /// The text of the first menu row, or nil when the last sync went normally.
+    /// The text of the first menu row, or nil when the last sync went normally. The text is
+    /// looked up in the app's string catalog and stays English where none is loaded.
     public var banner: String? {
         switch lastOutcome {
         case .certificateExpired:
-            return "証明書が切れています。mwinit してください"
+            return String(localized: "Certificate expired. Run mwinit.")
         case .incompleteFetch:
-            return "取得が途中で切れたため同期を見送りました"
+            return String(localized: "Fetch was incomplete. Sync skipped.")
         case .heldDeletions(let counts, let managed, _):
             let percent =
                 managed == 0
                 ? 100 : Int((Double(counts.held) / Double(managed) * 100).rounded())
-            return "削除 \(counts.held) 件を保留中（管理中 \(managed) 件の \(percent)%）"
+            return String(
+                localized: "\(counts.held) deletions on hold (\(percent)% of \(managed) managed)")
         case .failed:
-            return "同期に失敗しました。ログを確認してください"
+            return String(localized: "Sync failed. Check the log.")
         case .success, nil:
             return nil
         }

@@ -17,15 +17,15 @@ private struct BannerCase {
 
 @Test func badgeAndBanner() {
     let cases: [BannerCase] = [
-        BannerCase(.certificateExpired, .alert, "証明書が切れています。mwinit してください"),
+        BannerCase(.certificateExpired, .alert, "Certificate expired. Run mwinit."),
         BannerCase(
             .incompleteFetch(bucketCounts: [1, 0, 1, 1, 1, 1, 1]), .alert,
-            "取得が途中で切れたため同期を見送りました"
+            "Fetch was incomplete. Sync skipped."
         ),
-        BannerCase(.failed("x"), .alert, "同期に失敗しました。ログを確認してください"),
+        BannerCase(.failed("x"), .alert, "Sync failed. Check the log."),
         BannerCase(
             .heldDeletions(SyncCounts(held: 42), managed: 180, storeIDs: []), .paused,
-            "削除 42 件を保留中（管理中 180 件の 23%）"
+            "42 deletions on hold (23% of 180 managed)"
         ),
         BannerCase(.success(SyncCounts(added: 1)), .none, nil),
     ]
@@ -41,11 +41,11 @@ private struct BannerCase {
 @Test func heldBannerRoundsAndGuardsZeroManaged() {
     let date = tokyo("2026-10-30T09:00:00")
     let half = AppStatus().applying(
-        .heldDeletions(SyncCounts(held: 1), managed: 8, storeIDs: []), at: date)
-    #expect(half.banner == "削除 1 件を保留中（管理中 8 件の 13%）")
+        .heldDeletions(SyncCounts(held: 3), managed: 8, storeIDs: []), at: date)
+    #expect(half.banner == "3 deletions on hold (38% of 8 managed)")
     let zero = AppStatus().applying(
         .heldDeletions(SyncCounts(held: 5), managed: 0, storeIDs: []), at: date)
-    #expect(zero.banner == "削除 5 件を保留中（管理中 0 件の 100%）")
+    #expect(zero.banner == "5 deletions on hold (100% of 0 managed)")
 }
 
 @Test func successAndHeldUpdateLastSuccess() {
