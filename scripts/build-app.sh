@@ -22,6 +22,11 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/Outlook2iCloudCal" "$APP/Contents/MacOS/Outlook2iCloudCal"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 
+ICON_TMP="$(mktemp -d build/icon.XXXXXX)"
+trap 'rm -rf "$ICON_TMP"' EXIT
+swift scripts/make-icon.swift "$ICON_TMP/AppIcon.iconset"
+iconutil -c icns "$ICON_TMP/AppIcon.iconset" -o "$APP/Contents/Resources/AppIcon.icns"
+
 codesign --force --options runtime \
     --entitlements Resources/Outlook2iCloudCal.entitlements \
     --sign "$CERT_NAME" "$APP"
