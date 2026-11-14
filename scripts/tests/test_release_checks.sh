@@ -1,6 +1,7 @@
 #!/bin/bash
-# Tests scripts/check-tag-version.sh and scripts/check-signature.sh without
-# touching the login keychain: signatures here are ad-hoc only.
+# Tests the release scripts without touching the login keychain or a real
+# remote: signatures here are ad-hoc only, and pushes go to a local bare
+# repository.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -80,6 +81,60 @@ if PATH="$STUBS:$PATH" CI=true RUNNER_TEMP="$WORK/runner_temp" GITHUB_ENV="$WORK
 fi
 grep -qx "SIGNING_KEYCHAIN=$WORK/runner_temp/signing.keychain-db" "$WORK/github_env" \
     || fail "a failed import did not export SIGNING_KEYCHAIN for cleanup"
+
+# bump-version.sh runs in a scratch clone whose origin is a local bare
+# repository, so no real remote is touched.
+export GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com
+export GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+git init --quiet --bare --initial-branch=main "$WORK/origin.git"
+REPO="$WORK/repo"
+git init --quiet --initial-branch=main "$REPO"
+mkdir -p "$REPO/scripts" "$REPO/Resources"
+cp "$ROOT/scripts/bump-version.sh" "$ROOT/scripts/check-tag-version.sh" "$REPO/scripts/"
+cp "$WORK/Info.plist" "$REPO/Resources/Info.plist"
+git -C "$REPO" add .
+git -C "$REPO" commit --quiet -m "chore: initial"
+git -C "$REPO" remote add origin "$WORK/origin.git"
+git -C "$REPO" push --quiet origin main
+BUMP="$REPO/scripts/bump-version.sh"
+
+expect 2 "usage" -- "$BUMP" huge
+expect 2 "usage" -- "$BUMP" patch --force
+
+expect 0 "" -- "$BUMP" minor
+"$REPO/scripts/check-tag-version.sh" v0.2.0 "$REPO/Resources/Info.plist" \
+    || fail "bump-version.sh minor did not set 0.2.0"
+[ "$(git -C "$REPO" log -1 --format=%s)" = "chore: bump version to 0.2.0" ] \
+    || fail "bump-version.sh minor did not commit the bump"
+[ "$(git -C "$REPO" rev-parse "v0.2.0^{commit}")" = "$(git -C "$REPO" rev-parse HEAD)" ] \
+    || fail "bump-version.sh minor did not tag HEAD as v0.2.0"
+[ -z "$(git -C "$REPO" status --porcelain)" ] \
+    || fail "bump-version.sh minor left the working tree dirty"
+
+# The unpushed bump leaves main ahead of origin.
+expect 1 "not in sync" -- "$BUMP" patch
+git -C "$REPO" push --quiet --atomic origin main refs/tags/v0.2.0
+
+expect 0 "" -- "$BUMP" major --push
+[ "$(git -C "$WORK/origin.git" rev-parse "v1.0.0^{commit}")" = "$(git -C "$REPO" rev-parse HEAD)" ] \
+    || fail "bump-version.sh major --push did not push v1.0.0"
+[ "$(git -C "$WORK/origin.git" rev-parse main)" = "$(git -C "$REPO" rev-parse HEAD)" ] \
+    || fail "bump-version.sh major --push did not push main"
+grep -q '<string>1.0.0</string>' "$REPO/Resources/Info.plist" \
+    || fail "bump-version.sh major did not set 1.0.0"
+
+git -C "$REPO" tag v1.0.1
+expect 1 "tag v1.0.1 already exists locally" -- "$BUMP" patch
+git -C "$REPO" tag -d v1.0.1 >/dev/null
+
+: > "$REPO/untracked"
+expect 1 "uncommitted or untracked" -- "$BUMP" patch
+rm "$REPO/untracked"
+
+git -C "$REPO" switch --quiet -c feature
+expect 1 "releases must be made from main" -- "$BUMP" patch
+git -C "$REPO" switch --quiet main
 
 if [ "$FAILURES" -gt 0 ]; then
     echo "$FAILURES failure(s)" >&2

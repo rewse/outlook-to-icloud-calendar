@@ -8,6 +8,7 @@ Run everything through the Makefile.
 - `make app` builds `build/Outlook2iCloudCal.app` and signs it with the self-signed identity "Outlook2iCloudCal Developer".
 - `make dmg` runs `make app` and packs the app into `build/Outlook2iCloudCal-<version>.dmg` with its `.sha256`. It stops when the app is not signed by the certificate in `scripts/signing-certificate-sha1`.
 - `make install` runs `make app`, copies the app to `~/Applications`, and opens it.
+- `make release-patch`, `make release-minor`, and `make release-major` run `scripts/bump-version.sh` with `--push`, which publishes a release; run them only when asked.
 - `make cert` creates the signing identity in the login keychain. It does nothing when the identity exists.
 
 The Makefile and `scripts/build-app.sh` export `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`. `xcode-select` points at the Command Line Tools, whose SDK lacks the macro plugin that SwiftUI's `@State` needs, and changing `xcode-select` affects other projects. Never run `xcode-select -s`. CI sets the same variable.
@@ -43,8 +44,9 @@ Before committing, stage new files and run `DEVELOPER_DIR=/Applications/Xcode.ap
 
 ## Releases
 
-1. Set `CFBundleShortVersionString` in `Resources/Info.plist` to the new version and commit it.
-2. Push a `vX.Y.Z` tag. `release.yml` checks the tag against `CFBundleShortVersionString` and stops before creating anything when they differ. It then creates the GitHub Release with notes that git-cliff builds from the Conventional Commits since the previous tag, and its `dmg` job attaches `Outlook2iCloudCal-X.Y.Z.dmg` and its `.sha256`.
+Run `make release-patch`, `make release-minor`, or `make release-major`. `scripts/bump-version.sh` requires a clean `main` in sync with origin and a tag that exists neither locally nor on origin. It sets `CFBundleShortVersionString` in `Resources/Info.plist`, commits `chore: bump version to X.Y.Z` (which git-cliff leaves out of the notes), tags the commit `vX.Y.Z`, and pushes `main` and the tag in one atomic push.
+
+The tag triggers `release.yml`, which checks the tag against `CFBundleShortVersionString` and stops before creating anything when they differ. It then creates the GitHub Release with notes that git-cliff builds from the Conventional Commits since the previous tag, and its `dmg` job attaches `Outlook2iCloudCal-X.Y.Z.dmg` and its `.sha256`.
 
 The `dmg` job signs with the same "Outlook2iCloudCal Developer" certificate as local builds, so the calendar permission survives switching between a DMG and `make install`. It reads the certificate from the secrets `SIGNING_CERTIFICATE_P12` (the `.p12`, base64) and `SIGNING_CERTIFICATE_PASSWORD` of the environment `release`, which only `v*` tags may deploy to. Only that job uses the environment; the `dmg-smoke` job in `test.yml` runs the same signing path on pull requests with a throwaway certificate and no secrets.
 
